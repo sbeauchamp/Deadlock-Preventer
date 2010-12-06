@@ -16,6 +16,7 @@ import java.util.Hashtable;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.IStatus;
+import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.debug.core.DebugPlugin;
 import org.eclipse.debug.core.ILaunch;
@@ -224,7 +225,10 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			if (additional != null)
 				newAttributes.append(SPACE + additional);
 			
-			ILaunchConfigurationWorkingCopy copy = lc.getWorkingCopy();
+			if (Platform.inDebugMode())
+				System.out.println("adding new vm args to launch conf: " + newAttributes.toString());
+
+				ILaunchConfigurationWorkingCopy copy = lc.getWorkingCopy();
 			copy.setAttribute(ORG_ECLIPSE_JDT_LAUNCHING_VM_ARGUMENTS, newAttributes.toString());
 			final ILaunchConfiguration newlc = copy.doSave();
 			oldLaunchSettings.put(newlc.getName(), cleanedUpAttributes);

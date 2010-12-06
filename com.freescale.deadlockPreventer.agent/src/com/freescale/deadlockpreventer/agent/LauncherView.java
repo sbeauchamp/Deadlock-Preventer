@@ -156,9 +156,9 @@ public class LauncherView extends ViewPart implements IAgent {
 				return "-Dcom.freescale.deadlockpreventer.throwingClass=" + exception;
 			return null;
 		case VM_ARG_AGENT:
-			return "-javaagent:" + deadlockPreventerJarPath.getAbsolutePath();
+			return "-javaagent:\"" + deadlockPreventerJarPath.getAbsolutePath() + "\"";
 		case VM_ARG_BOOT_CLASSPATH:
-			return "-Xbootclasspath/a:" + deadlockPreventerJarPath.getAbsolutePath() + ";" + javaassistJarPath.getAbsolutePath();
+			return "-Xbootclasspath/a:\"" + deadlockPreventerJarPath.getAbsolutePath() + "\";\"" + javaassistJarPath.getAbsolutePath() + "\"";
 		case VM_ARG_BOOT_SERVER_PORT:
 			return "-Dcom.freescale.deadlockpreventer.connectToServer=localhost:" + Activator.getDefault().getServer().getListeningPort();
 		}
