@@ -1,0 +1,13 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Deadlock Preventer Agent
+Bundle-SymbolicName: com.freescale.deadlockpreventer.agent;singleton:=true
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.freescale.deadlockpreventer.agent.Activator
+Bundle-Vendor: Freescale Semiconductor
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ com.freescale.deadlockpreventer.wrapper;bundle-version="1.0.0"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Export-Package: com.freescale.deadlockpreventer.agent

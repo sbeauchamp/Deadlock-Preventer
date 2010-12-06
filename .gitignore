@@ -1,0 +1,8 @@
+
+/com.freescale.deadlockPreventer/bin
+/com.freescale.deadlockPreventer.agent/bin
+/com.freescale.deadlockPreventer.agent.workbench/bin
+/com.freescale.deadlockPreventer.tests/bin
+/com.freescale.deadlockPreventer.wrapper/bin
+/javassist/bin
+/javassist.wrapper/bin

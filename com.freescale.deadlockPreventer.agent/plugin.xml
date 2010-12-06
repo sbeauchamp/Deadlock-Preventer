@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension-point id="Configurator" name="Configurator" schema="schema/Configurator.exsd"/>
+
+   <extension
+         id="application"
+         point="org.eclipse.core.runtime.applications">
+      <application>
+         <run
+               class="com.freescale.deadlockpreventer.agent.Application">
+         </run>
+      </application>
+   </extension>
+   <extension
+         point="org.eclipse.ui.perspectives">
+      <perspective
+            name="Deadlock Preventer Launcher Perspective"
+            class="com.freescale.deadlockpreventer.agent.Perspective"
+            id="com.freescale.deadlockpreventer.agent.perspective">
+      </perspective>
+   </extension>
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            name="Deadlock Preventer"
+            allowMultiple="false"
+            class="com.freescale.deadlockpreventer.agent.LauncherView"
+            id="com.freescale.deadlockpreventer.agent.launcherView">
+      </view>
+   </extension>
+   <extension
+         id="product"
+         point="org.eclipse.core.runtime.products">
+      <product
+            application="com.freescale.deadlockpreventer.agent.application"
+            name="Deadlock Preventer Launcher">
+         <property
+               name="aboutText"
+               value="Deadlock Preventer Agent, Freescale Semiconductor, copyright 2010 all rights reserved.">
+         </property>
+         <property
+               name="windowImages"
+               value="icons/codewarrior.gif">
+         </property>
+         <property
+               name="aboutImage"
+               value="icons/codewarrior.gif">
+         </property>
+         <property
+               name="appName"
+               value="Deadlock Preventer Launcher">
+         </property>
+      </product>
+   </extension>
+   <extension
+         point="com.freescale.deadlockpreventer.agent.Configurator">
+         <configurator class="com.freescale.deadlockpreventer.agent.StandaloneConfigurator"/>
+         
+   </extension>
+</plugin>

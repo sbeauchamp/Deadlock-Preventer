@@ -1,0 +1,14 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Deadlock Preventer Tests
+Bundle-SymbolicName: com.freescale.deadlockpreventer.tests
+Bundle-Version: 1.0.0.qualifier
+Bundle-Activator: com.freescale.deadlockpreventer.tests.Activator
+Bundle-Vendor: Freescale Semiconductor
+Require-Bundle: org.eclipse.ui,
+ org.eclipse.core.runtime,
+ com.freescale.deadlockpreventer.wrapper;bundle-version="1.0.0",
+ org.junit4;bundle-version="4.3.1"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+Bundle-ActivationPolicy: lazy
+Bundle-ClassPath: .
