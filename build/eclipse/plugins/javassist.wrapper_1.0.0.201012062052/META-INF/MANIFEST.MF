@@ -1,0 +1,18 @@
+Manifest-Version: 1.0
+Export-Package: javassist,javassist.bytecode,javassist.bytecode.analys
+ is,javassist.bytecode.annotation,javassist.bytecode.stackmap,javassis
+ t.compiler,javassist.compiler.ast,javassist.convert,javassist.expr,ja
+ vassist.runtime,javassist.scopedpool,javassist.tools,javassist.tools.
+ reflect,javassist.tools.rmi,javassist.tools.web,javassist.util.proxy,
+ javassist.wrapper
+Require-Bundle: org.eclipse.ui,org.eclipse.core.runtime
+Bundle-ActivationPolicy: lazy
+Bundle-ClassPath: javassist.jar
+Bundle-Version: 1.0.0.201012062052
+Bundle-Name: Javassist Library forked from 3.12GA
+Bundle-Activator: javassist.wrapper.Activator
+Bundle-ManifestVersion: 2
+Bundle-SymbolicName: javassist.wrapper
+Bundle-RequiredExecutionEnvironment: JavaSE-1.6
+
+
