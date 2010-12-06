@@ -1,0 +1,13 @@
+This consist of the first EPL release of the deadlock preventer by Freescale.
+
+The deadlock preventer is a tool that dynamically instruments the java bytecode of an application 
+when running in a java virtual machine in order to analyze the lock ordering and detect potential 
+deadlocks without the need to rely on unpredictable and unreliable race conditions.
+
+By running the deadlock preventer while executing the java program with a good code coverage 
+(basically covering all features that the customers are susceptible to use), we can ensure that 
+the code does not contain incorrect lock order, and is prone to deadlocks at runtime.
+
+To know more about the deadlock preventer, please refer to:
+
+	http://sergebeauchamp.blogspot.com/
