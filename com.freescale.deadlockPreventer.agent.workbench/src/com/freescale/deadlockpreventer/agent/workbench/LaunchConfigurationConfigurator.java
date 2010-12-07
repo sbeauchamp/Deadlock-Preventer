@@ -46,6 +46,14 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 	private static final String PREF_COMBO_SELECTION = "com.freescale.deadlockpreventer.agent.workbench.comboSelection";
 	private static final String SPACE = " ";
 	private static final String ORG_ECLIPSE_JDT_LAUNCHING_VM_ARGUMENTS = "org.eclipse.jdt.launching.VM_ARGUMENTS";
+	
+	private static final String[] supportedLaunchConfigurationTypes = {
+		"org.eclipse.jdt.junit.launchconfig",
+		"org.eclipse.pde.ui.RuntimeWorkbench",
+		"org.eclipse.jdt.launching.localJavaApplication",
+		"org.eclipse.pde.ui.JunitLaunchConfig"
+	};
+	
 	IAgent agent;
 	private Button launch;
 	private Combo combo;
@@ -158,9 +166,10 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			ArrayList<ILaunchConfiguration> list = new ArrayList<ILaunchConfiguration>();
 			for (ILaunchConfiguration lc : lcs) {
 				String id = lc.getType().getIdentifier();
-				if (id.equals("org.eclipse.pde.ui.RuntimeWorkbench") ||
-						id.equals("org.eclipse.jdt.launching.localJavaApplication"))
-					list.add(lc);
+				for (String type : supportedLaunchConfigurationTypes) {
+					if (id.equals(type))
+						list.add(lc);
+				}
 			}
 			lcs = list.toArray(new ILaunchConfiguration[0]);
 			String[] strings = new String[lcs.length];
