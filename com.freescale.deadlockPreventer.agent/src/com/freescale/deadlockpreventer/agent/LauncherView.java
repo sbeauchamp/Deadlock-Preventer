@@ -624,7 +624,7 @@ public class LauncherView extends ViewPart implements IAgent {
 		
 	    link.addListener(SWT.Selection, new Listener() {
 	        public void handleEvent(Event event) {
-				String exception = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_EXCEPTION_THROWS, "java.lang.RuntimeException");
+				String exception = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_EXCEPTION_THROWS, "com.freescale.deadlockpreventer.OrderingException");
 		        InputDialog dlg = new InputDialog(getSite().getShell(),
 		                "Exception thrown", "The following exception will be thrown when a conflict is detected:", 
 		                exception, new FilterValidator());

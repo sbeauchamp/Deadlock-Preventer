@@ -43,7 +43,7 @@ public class Analyzer {
 	private String debugException = IllegalMonitorStateException.class.getCanonicalName();
 	private HashMap<String, Boolean> instrumentationRestrictions = new HashMap<String, Boolean>();
 	private IConflictListener listener = new DefaultListener();
-	private Class<?> classToThrow = RuntimeException.class;
+	private Class<?> classToThrow = OrderingException.class;
 	
 	ThreadLocal<Integer> enablementCount = new ThreadLocal<Integer>() {
 		protected Integer initialValue() {
@@ -390,6 +390,7 @@ public class Analyzer {
 			cacheLine.add(new CacheEntry<T>(obj, value));
 		}
 	}
+	
 	ObjectCache<CustomLock> customLocks = new ObjectCache<CustomLock>();
 
 	private CustomLock createCustomLock(Object lock, boolean scoped) {
