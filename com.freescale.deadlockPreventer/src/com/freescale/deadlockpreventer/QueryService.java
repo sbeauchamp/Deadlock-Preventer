@@ -18,7 +18,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 
-public class NetworkQuery {
+public class QueryService {
 
 	public static String VERSION_ID = "1.0.0";
 	
@@ -26,7 +26,7 @@ public class NetworkQuery {
 	
 	private static String QUERY_DUMP_LOCKS;
 	
-	public NetworkQuery() {}
+	public QueryService() {}
 	
 	public static class Client {
 		Socket socket;

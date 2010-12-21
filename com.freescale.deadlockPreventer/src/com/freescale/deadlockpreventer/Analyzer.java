@@ -97,6 +97,12 @@ public class Analyzer {
 			listener = new NetworkClientListener(value);
 		}
 		
+		value = System.getProperty("com.freescale.deadlockpreventer.connectToQueryServer");
+		if (value != null) {
+			QueryService.Client client = new QueryService.Client(value);
+			client.start();
+		}
+
 		value = System.getProperty("com.freescale.deadlockpreventer.logToFile");
 		if (value != null) {
 			listener = new FileListener(value);

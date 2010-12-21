@@ -54,6 +54,9 @@ public class Statistics
 			LockImpl lock = new LockImpl(stack);
 			locks.put(lock.getID(), lock);
 		}
+		for (LockImpl lock : locks.values()) {
+			lock.completeInitialization(locks);
+		}
 	}
 
 	public String[] serialize() {
@@ -82,6 +85,15 @@ class LockImpl implements ILock
 	
 	public LockImpl(Object object) {
 		id = Analyzer.safeToString(object);
+	}
+
+	public void completeInitialization(HashMap<String, LockImpl> locks) {
+		for (ContextImpl context : precedents) {
+			context.completeInitialization(locks);
+		}
+		for (ContextImpl context : followers) {
+			context.completeInitialization(locks);
+		}
 	}
 
 	public LockImpl(LinkedList<String> stack) {
@@ -168,6 +180,10 @@ class ContextImpl implements IContext
 		this.lock = lock;
 		threadId = Long.toHexString(info.threadId);
 		stackTrace = convert(info.stackTrace);
+	}
+
+	public void completeInitialization(HashMap<String, LockImpl> locks) {
+		lock = locks.get(pendingLockID);
 	}
 
 	public ContextImpl(LinkedList<String> stack) {
