@@ -35,6 +35,8 @@ import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Text;
 
+import com.freescale.deadlockpreventer.agent.IAgent.IProcess;
+
 public class StandaloneConfigurator implements IConfigurator {
 
 	IAgent agent;
@@ -165,6 +167,7 @@ public class StandaloneConfigurator implements IConfigurator {
 		if (previousLines != null) {
 			ArrayList<String> newContent = new ArrayList<String>();
 			
+			String name = eclipseFile.getName();
 			for (String line : previousLines) {
 				if (line.startsWith("-javaagent:"))
 					continue;
@@ -173,11 +176,12 @@ public class StandaloneConfigurator implements IConfigurator {
 				if (line.startsWith("-Dcom.freescale.deadlockpreventer."))
 					continue;
 				newContent.add(line);
+				IProcess process = agent.createProcess(name);
 				if (line.trim().equals("-vmargs")) {
-					newContent.add(agent.getVMArg(IAgent.VM_ARG_AGENT));
-					newContent.add(agent.getVMArg(IAgent.VM_ARG_BOOT_CLASSPATH));
-					newContent.add(agent.getVMArg(IAgent.VM_ARG_BOOT_SERVER_PORT));
-					String additional = agent.getVMArg(IAgent.VM_ADDITIONAL_ARGUMENTS);
+					newContent.add(agent.getVMArg(process, IAgent.VM_ARG_AGENT));
+					newContent.add(agent.getVMArg(process, IAgent.VM_ARG_BOOT_CLASSPATH));
+					newContent.add(agent.getVMArg(process, IAgent.VM_ARG_BOOT_SERVER_PORT));
+					String additional = agent.getVMArg(process, IAgent.VM_ADDITIONAL_ARGUMENTS);
 					if (additional != null)
 						newContent.add(additional);
 				}

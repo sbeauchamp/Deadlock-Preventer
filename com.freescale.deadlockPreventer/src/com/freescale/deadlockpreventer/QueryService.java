@@ -19,11 +19,11 @@ import com.freescale.deadlockpreventer.NetworkServer.Session;
 
 public class QueryService implements NetworkServer.IService {
 
-	public static String ID = "report";
+	public static String ID = "query";
 
 	public static String VERSION_ID = "1.0.0";
 		
-	private static String QUERY_DUMP_LOCKS;
+	private static String QUERY_DUMP_LOCKS = "dump";
 	
 	public QueryService() {}
 	
@@ -115,7 +115,7 @@ public class QueryService implements NetworkServer.IService {
 					Message result = processQuery(message);
 					if (result != null) {
 						message.sendOK(output);
-						result.request(output, input);
+						result.respond(output);
 					}
 					else
 						message.sendError(output, "error");
@@ -154,6 +154,11 @@ public class QueryService implements NetworkServer.IService {
 			return content;
 		}
 
+		public void respond(PrintStream output) throws IOException {
+			NetworkUtil.writeStringArray(output, strings);
+			output.flush();
+		}
+		
 		public void readMessage(DataInputStream input) throws IOException {
 			String version = NetworkUtil.readString(input);
 			if (!version.equals(VERSION_ID)) {

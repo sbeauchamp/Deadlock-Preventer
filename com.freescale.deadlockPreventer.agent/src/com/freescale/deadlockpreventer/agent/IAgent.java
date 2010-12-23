@@ -32,7 +32,11 @@ public interface IAgent {
 
 	public void resetOutput();
 
-	public String getVMArg(int vmArgAgent);
+	public static interface IProcess {}
+	
+	public IProcess createProcess(String label);
+	
+	public String getVMArg(IProcess process, int vmArgAgent);
 
 	public IWorkbenchPartSite getSite();
 	public String getViewID();

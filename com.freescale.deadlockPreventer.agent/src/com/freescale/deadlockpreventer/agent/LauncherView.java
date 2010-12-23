@@ -12,6 +12,7 @@ package com.freescale.deadlockpreventer.agent;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -21,19 +22,22 @@ import java.util.regex.Pattern;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IConfigurationElement;
+import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
+import org.eclipse.jface.dialogs.ProgressMonitorDialog;
+import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.viewers.DoubleClickEvent;
 import org.eclipse.jface.viewers.IDoubleClickListener;
-import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
 import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.LabelProvider;
-import org.eclipse.jface.viewers.TableViewer;
+import org.eclipse.jface.viewers.StructuredSelection;
+import org.eclipse.jface.viewers.TreeViewer;
 import org.eclipse.jface.viewers.Viewer;
 import org.eclipse.jface.window.Window;
 import org.eclipse.swt.SWT;
@@ -57,6 +61,8 @@ import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Group;
 import org.eclipse.swt.widgets.Link;
 import org.eclipse.swt.widgets.Listener;
+import org.eclipse.swt.widgets.Menu;
+import org.eclipse.swt.widgets.MenuItem;
 import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.widgets.Text;
@@ -65,7 +71,13 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.part.ViewPart;
 import org.osgi.framework.Bundle;
 
-import com.freescale.deadlockpreventer.*;
+import com.freescale.deadlockpreventer.Analyzer;
+import com.freescale.deadlockpreventer.IConflictListener;
+import com.freescale.deadlockpreventer.ILock;
+import com.freescale.deadlockpreventer.NetworkServer;
+import com.freescale.deadlockpreventer.NetworkServer.Session;
+import com.freescale.deadlockpreventer.QueryService;
+import com.freescale.deadlockpreventer.ReportService;
 
 public class LauncherView extends ViewPart implements IAgent {
 	
@@ -73,18 +85,118 @@ public class LauncherView extends ViewPart implements IAgent {
 
 	public static final String ID = "com.freescale.deadlockpreventer.agent.launcherView";
 	
-	private TableViewer viewer;
+	private TreeViewer viewer;
 	private Button terminate;
 	private Button throwsException;
 	private Button interactive;
 	private StyledText outputText;
-	private QueryService queryservice;
-	private ArrayList<Conflict> conflictList = new ArrayList<LauncherView.Conflict>();
+	private ArrayList<InstrumentedProcess> processes = new ArrayList<LauncherView.InstrumentedProcess>();
 
 	private Button logAndContinue;
 
 	private Button displayWarning;
+	
+	
+	class InstrumentedProcess implements ReportService.IListener, IProcess
+	{
+		String label;
+		String reportKey;
+		String queryKey;
+		private QueryService queryService;
 		
+		public InstrumentedProcess(String label) {
+			this.label = label;
+		}
+
+		public String toString() {
+			return label;
+		}
+		
+		@Override
+		public int report(String type, String threadID,
+				String conflictThreadID, String lock, String[] lockStack,
+				String precedent, String[] precedentStack, String conflict,
+				String[] conflictStack, String conflictPrecedent,
+				String[] conflictPrecedentStack, String message) {
+			final Conflict conflictItem = new Conflict(this, type, threadID, conflictThreadID, 
+				lock, lockStack, 
+				precedent, precedentStack,
+				conflict, conflictStack,
+				conflictPrecedent, conflictPrecedentStack, message);
+			conflictList.add(conflictItem);
+			ConflictHandler handler = new ConflictHandler(conflictItem);
+			Display.getDefault().syncExec(handler);
+			return handler.result;
+		}
+		
+		protected Conflict[] getDisplayedConflicts() {
+			String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
+			
+			String[] filters = filtersString.split(";");
+			Pattern[] patterns = new Pattern[filters.length];
+			for (int i = 0; i < filters.length; i++) {
+				patterns[i] = Pattern.compile(filters[i]);
+			}
+			boolean showWarning = displayWarning.getSelection();
+			ArrayList<Conflict> list = new ArrayList<LauncherView.Conflict>();
+			for (Conflict conflict : conflictList) {
+				if (!showWarning && !conflict.isError())
+					continue;
+				
+				boolean passFilters = true;
+				for (Pattern pattern : patterns) {
+					if (pattern.matcher(conflict.conflict).matches() ||
+							pattern.matcher(conflict.precedent).matches()) {
+						passFilters = false;
+						break;
+					}
+				}
+				if (passFilters)
+					list.add(conflict);
+			}
+			return list.toArray(new Conflict[0]);
+		}
+
+		private ArrayList<Conflict> conflictList = new ArrayList<LauncherView.Conflict>();
+		
+		public void setReportKey(String reportKey) {
+			this.reportKey = reportKey;
+		}
+
+		public void setQueryKey(String queryKey) {
+			this.queryKey = queryKey;
+		}
+
+		public void displayStatistics() {
+			if (!queryService.isConnected()) {
+			   try {
+				new ProgressMonitorDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell()).run(true, true, new IRunnableWithProgress() {
+						@Override
+						public void run(IProgressMonitor monitor) throws InvocationTargetException,
+								InterruptedException {
+							while (!queryService.isConnected()) {
+								if (Display.getDefault().readAndDispatch())
+									Thread.sleep(100);
+								if (monitor.isCanceled())
+									break;
+							}
+							
+						}
+					});
+				} catch (InvocationTargetException e) {
+					e.printStackTrace();
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+			if (queryService.isConnected()) {
+				ILock[] locks = queryService.getLocks();
+				StatisticsDialog dialog = new StatisticsDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), locks);
+				dialog.open();
+			}
+		}
+	}
+	
 	public String getPref(String key, String defaultValue) {
 		return new InstanceScope().getNode(Activator.PLUGIN_ID).get(key, defaultValue);
 	}
@@ -103,14 +215,54 @@ public class LauncherView extends ViewPart implements IAgent {
 	
 	public void resetOutput() {
 		outputText.setText("");
-		conflictList.clear();
+		processes.clear();
 		viewer.refresh();
 	}
 
 	File deadlockPreventerJarPath = null;
 	File javaassistJarPath = null;
 	
-	public String getVMArg(int vmArgAgent) {
+	public IProcess createProcess(String label) {
+		NetworkServer server = Activator.getDefault().getServer();
+		String reportKey = server.createNewSessionKey(ReportService.ID);
+		final InstrumentedProcess process = new InstrumentedProcess(getUniqueLabel(label));
+		ReportService service = new ReportService() {
+			public void handle(Session session) {
+				super.handle(session);
+				if (!processes.contains(process))
+					processes.add(process);
+			}
+		};
+		service.setListener(process);
+		server.registerSevice(reportKey, service);
+		
+		String queryKey = server.createNewSessionKey(QueryService.ID);
+		process.queryService = new QueryService();
+		server.registerSevice(queryKey, process.queryService);
+		
+		process.setReportKey(reportKey);
+		process.setQueryKey(queryKey);
+		return process;
+	}
+	
+	private String getUniqueLabel(String label) {
+		String newLabel = label;
+		int count = 1;
+		while (!isProcessNameUnique(newLabel)) {
+			newLabel = label + " (" + count++ + ")";
+		}
+		return newLabel;
+	}
+
+	private boolean isProcessNameUnique(String newLabel) {
+		for (InstrumentedProcess process : processes) {
+			if (process.label.equals(newLabel))
+				return false;
+		}
+		return true;
+	}
+
+	public String getVMArg(IProcess process, int vmArgAgent) {
 		if (deadlockPreventerJarPath == null) {
 			Bundle bundle = Platform
 					.getBundle("com.freescale.deadlockpreventer.wrapper");
@@ -163,17 +315,9 @@ public class LauncherView extends ViewPart implements IAgent {
 		case VM_ARG_BOOT_SERVER_PORT:
 			{
 				NetworkServer server = Activator.getDefault().getServer();
-				String reportKey = server.createNewSessionKey(ReportService.ID);
-				ReportService service = new ReportService();
-				service.setListener(new ReportServiceListener());
-				server.registerSevice(reportKey, service);
-				
-				String queryKey = server.createNewSessionKey(QueryService.ID);
-				queryservice = new QueryService();
-				server.registerSevice(queryKey, queryservice);
-
-				return "-D" + Analyzer.PROPERTY_REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + reportKey + 
-				" -D" + Analyzer.PROPERTY_QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + queryKey;
+				InstrumentedProcess instrumentedProcess = (InstrumentedProcess) process;
+				return "-D" + Analyzer.PROPERTY_REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.reportKey + 
+				" -D" + Analyzer.PROPERTY_QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.queryKey;
 			}
 		}
 		return null;
@@ -189,19 +333,19 @@ public class LauncherView extends ViewPart implements IAgent {
 
 		@Override
 		public void run() {
-			conflictList.add(conflictItem);
+			viewer.setExpandedState(conflictItem.process, true);
 			viewer.refresh();
 			result = handleConflict(conflictItem);
 		}
 	}
 
 	class Conflict {
-		public Conflict(String type, String threadID, String conflictThreadID,
+		public Conflict(InstrumentedProcess process, String type, String threadID, String conflictThreadID,
 				String lock, String[] lockStack, String precedent,
 				String[] precedentStack, String conflict,
 				String[] conflictStack, String conflictPrecedent,
 				String[] conflictPrecedentStack, String message) {
-			super();
+			this.process = process;
 			this.type = type;
 			this.threadID = threadID;
 			this.conflictThreadID = conflictThreadID;
@@ -215,6 +359,7 @@ public class LauncherView extends ViewPart implements IAgent {
 			this.conflictPrecedentStack = conflictPrecedentStack;
 			this.message = message;
 		}
+		InstrumentedProcess process;
 		String type;
 		String threadID;
 		String conflictThreadID; 
@@ -236,6 +381,11 @@ public class LauncherView extends ViewPart implements IAgent {
 		public boolean isError() {
 			return type.equals("ERROR");
 		}
+
+
+		public void remove() {
+			process.conflictList.remove(this);
+		}
 	}
 
 	class ViewContentProvider implements IStructuredContentProvider, 
@@ -252,23 +402,26 @@ public class LauncherView extends ViewPart implements IAgent {
 		}
         
 		public Object getParent(Object child) {
-			if (child instanceof Conflict) {
-				return conflictList;
-			}
+			if (child instanceof Conflict)
+				return ((Conflict) child).process;
+			if (child instanceof InstrumentedProcess)
+				return processes;
 			return null;
 		}
         
 		public Object[] getChildren(Object parent) {
-			if (parent instanceof ArrayList) {
-				return getDisplayedConflicts();
-			}
+			if (parent instanceof InstrumentedProcess)
+				return ((InstrumentedProcess) parent).getDisplayedConflicts();
+			if (parent instanceof ArrayList)
+				return ((ArrayList<?>) parent).toArray();
 			return new Object[0];
 		}
 
-        @SuppressWarnings("unchecked")
 		public boolean hasChildren(Object parent) {
 			if (parent instanceof ArrayList)
-				return ((ArrayList<Conflict>)parent).size() > 0;
+				return ((ArrayList<?>)parent).size() > 0;
+			if (parent instanceof InstrumentedProcess)
+				return ((InstrumentedProcess) parent).getDisplayedConflicts().length > 0;
 			return false;
 		}
 	}
@@ -285,6 +438,8 @@ public class LauncherView extends ViewPart implements IAgent {
 							ISharedImages.IMG_OBJS_WARN_TSK;
 				return PlatformUI.getWorkbench().getSharedImages().getImage(imageKey);
 			}
+			if (obj instanceof InstrumentedProcess)
+				return PlatformUI.getWorkbench().getSharedImages().getImage(ISharedImages.IMG_OBJ_ELEMENT);
 			return null;
 		}
 	}
@@ -361,28 +516,9 @@ public class LauncherView extends ViewPart implements IAgent {
 		outputTab.setControl(output);
 		
 	}
-
-	class ReportServiceListener implements ReportService.IListener
-	{
-		@Override
-		public int report(String type, String threadID,
-				String conflictThreadID, String lock, String[] lockStack,
-				String precedent, String[] precedentStack, String conflict,
-				String[] conflictStack, String conflictPrecedent,
-				String[] conflictPrecedentStack, String message) {
-				final Conflict conflictItem = new Conflict(type, threadID, conflictThreadID, 
-					lock, lockStack, 
-					precedent, precedentStack,
-					conflict, conflictStack,
-					conflictPrecedent, conflictPrecedentStack, message);
-				ConflictHandler handler = new ConflictHandler(conflictItem);
-				Display.getDefault().syncExec(handler);
-				return handler.result;
-			}
-	}
 	
 	private void createConflictsPart(Composite conflicts) {
-		viewer = new TableViewer(conflicts, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
+		viewer = new TreeViewer(conflicts, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
 		GridData layoutData = new GridData(SWT.FILL, SWT.FILL, true, true);
 		layoutData.horizontalSpan = 3;
 		viewer.getControl().setLayoutData(layoutData);
@@ -393,10 +529,12 @@ public class LauncherView extends ViewPart implements IAgent {
 		viewer.addDoubleClickListener(new IDoubleClickListener() {
 			@Override
 			public void doubleClick(DoubleClickEvent event) {
-				ISelection selection = viewer.getSelection();
-				if (selection instanceof IStructuredSelection) {
-					Conflict conflict = (Conflict) ((IStructuredSelection) selection).getFirstElement();
-					showInEditor(conflict);
+				Object element = getSelection().getFirstElement();
+				if (element != null) {
+					if (element instanceof Conflict)
+						showInEditor((Conflict) element);
+					if (element instanceof InstrumentedProcess)
+						((InstrumentedProcess) element).displayStatistics();
 				}
 			}
 		});
@@ -404,21 +542,48 @@ public class LauncherView extends ViewPart implements IAgent {
 			@Override
 			public void keyReleased(KeyEvent e) {
 				if (e.keyCode == SWT.DEL) {
-					IStructuredSelection selection = (IStructuredSelection) viewer.getSelection();
-					if (!selection.isEmpty()) {
-						if (selection instanceof IStructuredSelection) {
-							Iterator<?> it = ((IStructuredSelection) selection).iterator();
-							while (it.hasNext()) {
-								Conflict conflict = (Conflict) it.next();
-								conflictList.remove(conflict);
-							}
-						}
-						viewer.refresh();
+					Iterator<?> it = getSelection().iterator();
+					while (it.hasNext()) {
+						Object obj = it.next();
+						if (obj instanceof Conflict)
+							((Conflict) obj).remove();
+						if (obj instanceof InstrumentedProcess)
+							processes.remove(obj);
 					}
+					viewer.refresh();
 				}
 			}
 		});
-		
+
+		final Menu menu = new Menu(conflicts.getShell(), SWT.POP_UP);
+		viewer.getControl().setMenu(menu);
+	    
+		MenuItem menuItem = new MenuItem (menu, SWT.PUSH);
+	    menuItem.setText ("Statistics...");
+
+	    menu.addListener(SWT.Show, new Listener() {
+			public void handleEvent(Event event) {
+				boolean isAProcess = selectionIsAProcess();
+				for (MenuItem item : menu.getItems())
+					item.setEnabled(isAProcess);
+			}
+
+			private boolean selectionIsAProcess() {
+				Iterator<?> it = getSelection().iterator();
+				while (it.hasNext()) {
+					Object obj = it.next();
+					if (!(obj instanceof InstrumentedProcess))
+						return false;
+				}
+				return true;
+			}
+		});
+	    menuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				displayStatistics();
+			}
+	    });
+
 		displayWarning = new Button(conflicts, SWT.CHECK);
 		displayWarning.setText("Display warnings");
 		displayWarning.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
@@ -450,22 +615,42 @@ public class LauncherView extends ViewPart implements IAgent {
 		copyToClipBoard.setLayoutData(new GridData(SWT.RIGHT, SWT.CENTER, false, false));
 		copyToClipBoard.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				Conflict[] conflicts = getDisplayedConflicts();
-				if (conflicts.length > 0) {
-					StringBuffer buffer = new StringBuffer();
-					for (Conflict conflict : conflicts) {
-						buffer.append(conflict.message + "\n");
+				StringBuffer buffer = new StringBuffer();
+				for (InstrumentedProcess process : processes) {
+					Conflict[] conflicts = process.getDisplayedConflicts();
+					if (conflicts.length > 0) {
+						for (Conflict conflict : conflicts) {
+							buffer.append(conflict.message + "\n");
+						}
 					}
-				    Clipboard cb = new Clipboard(Display.getDefault());
-				    TextTransfer textTransfer = TextTransfer.getInstance();
-			        cb.setContents(new Object[] { buffer.toString() },
-			            new Transfer[] { textTransfer });
 				}
+			    Clipboard cb = new Clipboard(Display.getDefault());
+			    TextTransfer textTransfer = TextTransfer.getInstance();
+		        cb.setContents(new Object[] { buffer.toString() },
+		            new Transfer[] { textTransfer });
 			}
 		});
-		viewer.setInput(conflictList);
+		viewer.setInput(processes);
 	}
 	
+	private IStructuredSelection getSelection() {
+		IStructuredSelection selection = (IStructuredSelection) viewer.getSelection();
+		if (!selection.isEmpty()) {
+			if (selection instanceof IStructuredSelection)
+				return (IStructuredSelection) selection;
+		}
+		return new StructuredSelection();
+	}
+	
+	protected void displayStatistics() {
+		Iterator<?> it = getSelection().iterator();
+		while (it.hasNext()) {
+			Object obj = it.next();
+			if ((obj instanceof InstrumentedProcess))
+				((InstrumentedProcess) obj).displayStatistics();
+		}
+	}
+
 	static class FilterValidator implements IInputValidator {
 
 		@Override
@@ -493,34 +678,6 @@ public class LauncherView extends ViewPart implements IAgent {
 
 	private Button printToStdout;
 	
-	protected Conflict[] getDisplayedConflicts() {
-		String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
-		
-		String[] filters = filtersString.split(";");
-		Pattern[] patterns = new Pattern[filters.length];
-		for (int i = 0; i < filters.length; i++) {
-			patterns[i] = Pattern.compile(filters[i]);
-		}
-		boolean showWarning = displayWarning.getSelection();
-		ArrayList<Conflict> list = new ArrayList<LauncherView.Conflict>();
-		for (Conflict conflict : conflictList) {
-			if (!showWarning && !conflict.isError())
-				continue;
-			
-			boolean passFilters = true;
-			for (Pattern pattern : patterns) {
-				if (pattern.matcher(conflict.conflict).matches() ||
-						pattern.matcher(conflict.precedent).matches()) {
-					passFilters = false;
-					break;
-				}
-			}
-			if (passFilters)
-				list.add(conflict);
-		}
-		return list.toArray(new Conflict[0]);
-	}
-
 	private boolean passFilters(Conflict conflictItem) {
 		String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
 		

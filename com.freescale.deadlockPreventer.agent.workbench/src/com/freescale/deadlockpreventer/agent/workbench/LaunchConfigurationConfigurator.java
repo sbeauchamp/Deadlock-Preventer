@@ -38,6 +38,7 @@ import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.progress.UIJob;
 
 import com.freescale.deadlockpreventer.agent.IAgent;
+import com.freescale.deadlockpreventer.agent.IAgent.IProcess;
 import com.freescale.deadlockpreventer.agent.IConfigurator;
 
 public class LaunchConfigurationConfigurator implements IConfigurator{
@@ -214,9 +215,11 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			String[] attributes = attribute.split(SPACE);
 			StringBuffer newAttributes = new StringBuffer();
 			
-			String prefixAgent = agent.getVMArg(IAgent.VM_ARG_AGENT);
-			String prefixBootClassPath = agent.getVMArg(IAgent.VM_ARG_BOOT_CLASSPATH);
-			String prefixServerPort = agent.getVMArg(IAgent.VM_ARG_BOOT_SERVER_PORT);
+			IProcess process = agent.createProcess(lc.getName());
+			
+			String prefixAgent = agent.getVMArg(process, IAgent.VM_ARG_AGENT);
+			String prefixBootClassPath = agent.getVMArg(process, IAgent.VM_ARG_BOOT_CLASSPATH);
+			String prefixServerPort = agent.getVMArg(process, IAgent.VM_ARG_BOOT_SERVER_PORT);
 			
 			String prefixAgentPrefix = prefixAgent.split(":")[0];
 			String prefixBootClassPathPrefix = prefixBootClassPath.split(":")[0];
@@ -234,7 +237,7 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			newAttributes.append(prefixAgent + SPACE);
 			newAttributes.append(prefixBootClassPath + SPACE);
 			newAttributes.append(prefixServerPort);
-			String additional = agent.getVMArg(IAgent.VM_ADDITIONAL_ARGUMENTS);
+			String additional = agent.getVMArg(process, IAgent.VM_ADDITIONAL_ARGUMENTS);
 			if (additional != null)
 				newAttributes.append(SPACE + additional);
 			

@@ -106,11 +106,8 @@ public class Analyzer {
 	
 	private Analyzer() {
 		String value = System.getProperty(PROPERTY_REPORT_SERVICE);
-		if (value != null) {
+		if (value != null)
 			listener = new NetworkClientListener(value);
-			QueryService.Client client = new QueryService.Client(value);
-			client.start();
-		}
 
 		value = System.getProperty(PROPERTY_QUERY_SERVICE);
 		if (value != null) {

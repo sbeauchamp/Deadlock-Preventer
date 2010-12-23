@@ -104,7 +104,7 @@ public class NetworkServer {
 	
 	private int createNewSessionID() {
 		synchronized(this) {
-			return latestSessionID;
+			return ++latestSessionID;
 		}
 	}
 	

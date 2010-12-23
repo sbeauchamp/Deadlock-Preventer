@@ -54,6 +54,7 @@ public class ConflictDialog extends Dialog {
 	@Override
 	protected Control createDialogArea(Composite parent) {
 		parent.setLayout(new GridLayout(1, false));
+		parent.setLayoutData(new GridData(SWT.FILL, SWT.FILL, true, true));
 
 		Text text = new Text(parent, SWT.READ_ONLY | SWT.BORDER | SWT.V_SCROLL | SWT.H_SCROLL);
 		text.setBackground(Display.getDefault().getSystemColor(SWT.COLOR_WHITE));
