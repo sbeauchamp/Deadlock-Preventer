@@ -31,8 +31,8 @@ import org.eclipse.swt.layout.GridData;
 import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
-import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Text;
 
 import com.freescale.deadlockpreventer.agent.IAgent.IProcess;
@@ -146,12 +146,11 @@ public class StandaloneConfigurator implements IConfigurator {
 
 	private File getEclipsePath() {
 		File directory = new File(executablePath.getText());
-		File eclipseDirectory = new File(directory, "eclipse");
 		File eclipseFile;
 		if (Platform.getOS().equals(Platform.OS_WIN32))
-			eclipseFile = new File(eclipseDirectory, "eclipse.exe");
+			eclipseFile = new File(directory, "eclipse.exe");
 		else
-			eclipseFile = new File(eclipseDirectory, "eclipse");
+			eclipseFile = new File(directory, "eclipse");
 		return eclipseFile;
 	}
 
@@ -176,8 +175,8 @@ public class StandaloneConfigurator implements IConfigurator {
 				if (line.startsWith("-Dcom.freescale.deadlockpreventer."))
 					continue;
 				newContent.add(line);
-				IProcess process = agent.createProcess(name);
 				if (line.trim().equals("-vmargs")) {
+					IProcess process = agent.createProcess(name);
 					newContent.add(agent.getVMArg(process, IAgent.VM_ARG_AGENT));
 					newContent.add(agent.getVMArg(process, IAgent.VM_ARG_BOOT_CLASSPATH));
 					newContent.add(agent.getVMArg(process, IAgent.VM_ARG_BOOT_SERVER_PORT));
@@ -249,15 +248,15 @@ public class StandaloneConfigurator implements IConfigurator {
 	}
 
 	private void doBrowse() {
-		DirectoryDialog dialog = new DirectoryDialog (agent.getSite().getShell());
-		dialog.setMessage("Select the location of the CodeWarrior Studio installation");
+		FileDialog dialog = new FileDialog (agent.getSite().getShell());
+		dialog.setText("Select the location of the eclipse.exe:");
 		String path = dialog.open();
 		if (path != null) {
 			// massage the path
-			File directory = new File(path);
-			File eclipseDirectory = new File(directory, "eclipse");
-			if (eclipseDirectory.exists())
-				directory = directory.getParentFile();
+			File executable = new File(path);
+			File directory;
+			if (executable.exists())
+				directory = executable.getParentFile();
 			else {
 				showFileLocationErrorDialog();
 				return;
@@ -268,7 +267,7 @@ public class StandaloneConfigurator implements IConfigurator {
 	}
 
 	private void showFileLocationErrorDialog() {
-		MessageDialog.openError(agent.getSite().getShell(), "Invalid location", "The CodeWarrior Studio installation directory must be selected (containing the 'eclipse' directory).");
+		MessageDialog.openError(agent.getSite().getShell(), "Invalid location", "The Eclipse installation directory must be selected (containing the 'eclipse' directory).");
 	}
 
 	class ReaderThread implements Runnable {
@@ -290,7 +289,7 @@ public class StandaloneConfigurator implements IConfigurator {
 							agent.output("\n" + copy);
 						}
 					});
-					reader.readLine();
+					line = reader.readLine();
 				}
 			} catch (IOException e) {
 				e.printStackTrace();

@@ -63,10 +63,18 @@ public class QueryService implements NetworkServer.IService {
     		return connection != null;
     	}
     }
-    
+
+    public boolean isClosed() {
+    	synchronized(this) {
+    		return connection != null && connection.isClosed();
+    	}
+    }
+
     public ILock[] getLocks() {
     	Message msg = new Message(new String[] {QUERY_DUMP_LOCKS});
     	Message result = connection.request(msg);
+    	if (result == null)
+    		return null;
     	return parseLocks(result.getStrings());
     }
 
@@ -80,6 +88,10 @@ public class QueryService implements NetworkServer.IService {
 		
 		public ServerConnection(NetworkServer.Session session) {
 			this.session = session;
+		}
+
+		public boolean isClosed() {
+			return session.isClosed();
 		}
 
 		public void stop() {

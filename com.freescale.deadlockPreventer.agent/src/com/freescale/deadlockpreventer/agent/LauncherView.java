@@ -23,7 +23,9 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.FileLocator;
 import org.eclipse.core.runtime.IConfigurationElement;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Platform;
+import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
@@ -69,6 +71,7 @@ import org.eclipse.swt.widgets.Text;
 import org.eclipse.ui.ISharedImages;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.part.ViewPart;
+import org.eclipse.ui.progress.UIJob;
 import org.osgi.framework.Bundle;
 
 import com.freescale.deadlockpreventer.Analyzer;
@@ -190,9 +193,15 @@ public class LauncherView extends ViewPart implements IAgent {
 				}
 			}
 			if (queryService.isConnected()) {
-				ILock[] locks = queryService.getLocks();
-				StatisticsDialog dialog = new StatisticsDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), locks);
-				dialog.open();
+				ILock[] locks = null;
+				if (!queryService.isClosed())
+					locks = queryService.getLocks();
+				if (locks == null)
+					MessageDialog.openError(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), "Can't retrieve process information", "Process need to be running to get lock information.");
+				else {
+					StatisticsDialog dialog = new StatisticsDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), locks);
+					dialog.open();
+				}
 			}
 		}
 	}
@@ -229,8 +238,10 @@ public class LauncherView extends ViewPart implements IAgent {
 		ReportService service = new ReportService() {
 			public void handle(Session session) {
 				super.handle(session);
-				if (!processes.contains(process))
+				if (!processes.contains(process)) {
 					processes.add(process);
+					refreshViewerInMainThread();
+				}
 			}
 		};
 		service.setListener(process);
@@ -245,6 +256,16 @@ public class LauncherView extends ViewPart implements IAgent {
 		return process;
 	}
 	
+	protected void refreshViewerInMainThread() {
+		UIJob job = new UIJob("") {
+			public IStatus runInUIThread(IProgressMonitor monitor) {
+				viewer.refresh();
+				return Status.OK_STATUS;
+			}
+		};
+		job.schedule();
+	}
+
 	private String getUniqueLabel(String label) {
 		String newLabel = label;
 		int count = 1;

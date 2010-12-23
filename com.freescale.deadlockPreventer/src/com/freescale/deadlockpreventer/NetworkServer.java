@@ -86,6 +86,10 @@ public class NetworkServer {
 		private Socket socket;
 		private DataInputStream input;
 		private PrintStream output;
+
+		public boolean isClosed() {
+			return socket.isClosed();
+		}
 	}
 	
 	// the key is serviceID.sessionID

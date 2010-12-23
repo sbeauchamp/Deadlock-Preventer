@@ -10,6 +10,9 @@
  *******************************************************************************/
 package com.freescale.deadlockpreventer;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -32,6 +35,7 @@ public class Analyzer {
 	public static final String PROPERTY_LOG_TO_FILE = "com.freescale.deadlockpreventer.logToFile";
 	public static final String PROPERTY_QUERY_SERVICE = "com.freescale.deadlockpreventer.queryService";
 	public static final String PROPERTY_REPORT_SERVICE = "com.freescale.deadlockpreventer.reportService";
+	public static final String PROPERTY_DUMP_LOCK_INFO = "com.freescale.deadlockpreventer.dumpLocksToFile";
 	
 	public static final int LOCK_NORMAL = 0;
 	public static final int UNLOCK_NORMAL = 1;
@@ -116,9 +120,12 @@ public class Analyzer {
 		}
 
 		value = System.getProperty(PROPERTY_LOG_TO_FILE);
-		if (value != null) {
+		if (value != null)
 			listener = new FileListener(value);
-		}
+		
+		value = System.getProperty(PROPERTY_DUMP_LOCK_INFO);
+		if (value != null)
+			setupDumpOnExit(value);
 
 		abortOnErrors = Boolean.getBoolean(PROPERTY_ABORT_ON_ERRORS);
 		reportWarningInSameThreadConflicts = Boolean.getBoolean(PROPERTY_REPORT_WARNINGS);
@@ -148,6 +155,59 @@ public class Analyzer {
 		}
 	}
 	
+	private void setupDumpOnExit(final String file) {
+		System.setSecurityManager(new SecurityManager() {
+			@Override
+			public void checkExit(int status) {
+				dumpLockInformation(file);
+				super.checkExit(status);
+			}
+		});
+	}
+
+	private void dumpLockInformation(String file) {
+		File outputFile = new File(file);
+		if (!outputFile.getParentFile().exists())
+			outputFile.getParentFile().mkdirs();
+		try {
+			if (!outputFile.exists())
+				outputFile.createNewFile();
+			FileWriter writer = new FileWriter(outputFile);
+			dumpLockInformation(writer);
+			writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void dumpLockInformation(FileWriter writer) {
+		ILock[] locks = new Statistics().locks();
+		try {
+			for (ILock lock : locks) {
+				writer.write("lock: " + lock.getID() + ", precedents(" + lock.getPrecedents().length + " followers(" + lock.getFollowers().length + ")\n");
+				writeStack(writer, "  ", lock.getStackTrace());
+				writer.write("  precedents:\n");
+				for (IContext context : lock.getPrecedents()) {
+					writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")");
+					writeStack(writer, "    ", context.getStackTrace());
+				}
+				writer.write("  followers:\n");
+				for (IContext context : lock.getFollowers()) {
+					writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")");
+					writeStack(writer, "    ", context.getStackTrace());
+				}
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
+	private void writeStack(FileWriter writer, String prefix, String[] stackTrace) throws IOException {
+		for (String stack : stackTrace) {
+			writer.write(prefix + stack + "\n");
+		}
+	}
+
 	void activate() {
 		isActive = true;
 	}
@@ -709,22 +769,22 @@ public class Analyzer {
 			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
 
 			if (conflictLock != null) {
-				buffer.append(getEmptyPrintOutHeader() + "Previously acquired signal: " + safeToString(conflictLock.lock)  + "\n");
+				buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired signal: " + safeToString(conflictLock.lock)  + "\n");
 				conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
 			}
 
-			buffer.append(getEmptyPrintOutHeader() + "Previously held lock: " + safeToString(precedent.lock)  + " in thread: " + conflictThreadID  + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "\nPreviously held lock: " + safeToString(precedent.lock)  + " in thread: " + conflictThreadID  + "\n");
 			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
 		}
 		else {
 			info.print(buffer, getEmptyPrintOutHeader() + indent);
-			buffer.append(getEmptyPrintOutHeader() + "with predecent : " + safeToString(precedent.lock) + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "\nwith predecent : " + safeToString(precedent.lock) + "\n");
 			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
 			
-			buffer.append(getEmptyPrintOutHeader() + "Previously acquired lock: " + safeToString(conflictLock.lock)  + " in thread: " + conflictThreadID  + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired lock: " + safeToString(conflictLock.lock)  + " in thread: " + conflictThreadID  + "\n");
 			conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
 
-			buffer.append(getEmptyPrintOutHeader() + "Previously acquired precedent: " + safeToString(conflictPrecedent.lock)  + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired precedent: " + safeToString(conflictPrecedent.lock)  + "\n");
 			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
 		}
 
