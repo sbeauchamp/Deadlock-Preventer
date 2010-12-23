@@ -27,31 +27,21 @@ import com.freescale.deadlockpreventer.Analyzer;
 import com.freescale.deadlockpreventer.IConflictListener;
 import com.freescale.deadlockpreventer.NetworkClientListener;
 import com.freescale.deadlockpreventer.NetworkServer;
+import com.freescale.deadlockpreventer.ReportService;
 
 public class Main {
 
 	@Test
 	public void testProperty() {
 		final Property property = new Property();
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				property.get("foo");
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		try {
-			property.set("bar", "value");
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("ERROR"));
-		}
+		property.set("bar", "value");
+		assertConflictError();
 	}
 
 	private Object lockA = new Object();
@@ -61,12 +51,34 @@ public class Main {
 	private Object lockE = new Object();
 	private ILock lock_Eclipse_A = Job.getJobManager().newLock(); 
 	private ILock lock_Eclipse_B = Job.getJobManager().newLock(); 
+	ConflictReporter defaultReporter = new ConflictReporter();
 	
+	private void assertNoConflict() {
+		assertTrue(defaultReporter.noReports);
+		defaultReporter.reset();
+	}
+
+	private void assertConflictError() {
+		assertTrue(defaultReporter.gotError);
+		defaultReporter.reset();
+	}
+
+	private void assertConflictSignalError() {
+		assertTrue(defaultReporter.gotErrorSignal);
+		defaultReporter.reset();
+	}
+
+	private void assertConflictWarning() {
+		assertTrue(defaultReporter.gotWarning);
+		defaultReporter.reset();
+	}
+
 	@Before
 	public void setUp() throws Exception {
 		Analyzer.instance().setReportWarningsInSameThread(true);
 		Analyzer.instance().setThrowsOnError(true);
 		Analyzer.instance().setThrowsOnWarning(true);
+		Analyzer.instance().setListener(defaultReporter);
 		assertTrue(Analyzer.instance().isActive());
 		assertTrue(Analyzer.instance().shouldInstrument(Main.class));
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
@@ -92,11 +104,13 @@ public class Main {
 		synchronized(this) {
 			code();
 		}
+		assertNoConflict();
 	}
 	
 	@Test
 	public synchronized void test2() {
 		code();
+		assertNoConflict();
 	}
 
 	@Test
@@ -104,6 +118,7 @@ public class Main {
 		synchronized(this) {
 			code();
 		}
+		assertNoConflict();
 	}
 
 	@Test
@@ -111,41 +126,26 @@ public class Main {
 		synchronized(lockA) {
 			code();
 		}
+		assertNoConflict();
 	}
 
 	@Test
 	public void generateWarning() {
 		test_a();
-		try {
-			test_b();
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("WARNING"));
-		}
+		test_b();
+		assertConflictWarning();
 	}
 
 	@Test
 	public void generateError() {
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				test_c();
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e1) {
-			fail(e1.getMessage());
-		}
-		try {
-			test_d();
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("ERROR"));
-		}
+		test_d();
+		assertConflictError();
 	}
 
 	private String getLock_b() {
@@ -183,13 +183,8 @@ public class Main {
 	@Test
 	public void testRequiresMultiLevelDependents() {
 		test_e();
-		try {
-			test_f();
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("WARNING"));
-		}
+		test_f();
+		assertConflictWarning();
 	}
 
 	private void test_e() {
@@ -209,13 +204,8 @@ public class Main {
 	@Test
 	public void generateEclipseWarning() {
 		test_e1();
-		try {
-			test_f1();
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("WARNING"));
-		}
+		test_f1();
+		assertConflictWarning();
 	}
 
 	private void test_e1() {
@@ -242,25 +232,14 @@ public class Main {
 
 	@Test
 	public void generateErrorMultiLevel() {
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				test_c1();
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e1) {
-			fail(e1.getMessage());
-		}
-		try {
-			test_d1();
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("ERROR"));
-		}
+		test_d1();
+		assertConflictError();
 	}
 
 	private void test_c1() {
@@ -288,13 +267,8 @@ public class Main {
 	@Test
 	public void generateEclipseError() {
 		test_e2();
-		try {
-			test_f2();
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("WARNING"));
-		}
+		test_f2();
+		assertConflictWarning();
 	}
 
 	private void test_e2() {
@@ -341,17 +315,12 @@ public class Main {
 				}
 			}
 		}
-		try {
-			synchronized(slave2) {
-				synchronized(slave1) {
-					
-				}
+		synchronized(slave2) {
+			synchronized(slave1) {
+				
 			}
-			fail("should throw an exception");
 		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("WARNING"));
-		}
+		assertConflictWarning();
 	}
 	
 	Object slave1a = new String("slave1a");
@@ -372,6 +341,7 @@ public class Main {
 				}
 			}
 		}
+		assertNoConflict();
 	}
 
 	Object recursive1 = new Object();
@@ -390,9 +360,10 @@ public class Main {
 			synchronized(recursive2) {
 			}
 		}
+		assertNoConflict();
 	}
 	
-	private final class ServerListener implements NetworkServer.IListener {
+	private final class ServerListener implements ReportService.IListener {
 		public boolean wasCalled = false;
 		public int report(String type, String threadID,
 				String conflictThreadID, String lock, String[] lockStack,
@@ -411,6 +382,7 @@ public class Main {
 				StackTraceElement[] precedentStack, Object conflict,
 				StackTraceElement[] conflictStack, Object conflictPrecedent,
 				StackTraceElement[] conflictPrecedentStack, String message) {
+			noReports = false;
 			if (type == Analyzer.TYPE_WARNING)
 				gotWarning = true;
 			if (type == Analyzer.TYPE_ERROR)
@@ -423,6 +395,15 @@ public class Main {
 			this.conflictPrecedent = conflictPrecedent;
 			return IConflictListener.CONTINUE | IConflictListener.LOG_TO_CONSOLE;
 		}
+		
+		public void reset() {
+			noReports = true;
+			gotWarning = false;
+			gotError = false;
+			gotErrorSignal = false;
+		}
+
+		public boolean noReports = true;
 		public boolean gotWarning = false;
 		public boolean gotError = false;
 		public boolean gotErrorSignal = false;
@@ -496,7 +477,7 @@ public class Main {
 		
 		final ReentrantLock lock = new ReentrantLock();
 		final ReentrantLock lock2 = new ReentrantLock();
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				try {
@@ -513,14 +494,6 @@ public class Main {
 				}
 			}
 		});
-
-		thread.start();
-		
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 
 		try {
 			try {
@@ -547,7 +520,7 @@ public class Main {
 
 	@Test 
 	public void testMasterLockInThread() {
-		Thread thread = new Thread(new Runnable() {
+		Runnable runnable = new Runnable() {
 			public void run() {
 				synchronized(master_b) {
 					synchronized(slave1b) {
@@ -556,7 +529,7 @@ public class Main {
 					}
 				}
 			}
-		});
+		};
 		// the following should work
 		synchronized(master_b) {
 			synchronized(slave2b) {
@@ -564,12 +537,8 @@ public class Main {
 				}
 			}
 		}
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
+		fork(runnable);
+		assertNoConflict();
 	}
 
 	Object slave1c = new String("slave1c");
@@ -591,16 +560,11 @@ public class Main {
 			}
 		}
 		// the following should fail
-		try {
-			synchronized(slave2c) {
-				synchronized(slave1c) {
-				}
+		synchronized(slave2c) {
+			synchronized(slave1c) {
 			}
-			fail("should throw an exception");
 		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("WARNING"));
-		}
+		assertConflictWarning();
 	}
 	
 	@Test
@@ -688,7 +652,7 @@ public class Main {
 	public void testToStringIsNotCalledWithConflict() {
 		final DeadlockingToString lock1 = new DeadlockingToString();
 		final DeadlockingToString lock2 = new DeadlockingToString();
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			public void run() {
 				synchronized(lock1) {
 					synchronized(lock2) {
@@ -697,23 +661,12 @@ public class Main {
 				}
 			} 
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e1) {
-			e1.printStackTrace();
-		}
-		try {
-			synchronized(lock2) {
-				synchronized(lock1) {
-					code();
-				}
+		synchronized(lock2) {
+			synchronized(lock1) {
+				code();
 			}
-			fail("should throw an exception");
 		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("ERROR"));
-		}
+		assertConflictError();
 		assertTrue(lock1.toStringCalled == false);
 		assertTrue(lock2.toStringCalled == false);
 	}
@@ -722,13 +675,16 @@ public class Main {
 	public void testToStringIsNotCalledWithConflictInNetworkClient() {
 		NetworkServer server = new NetworkServer();
 		server.start(0);
+		String key = server.createNewSessionKey(ReportService.ID);
+		ReportService service = new ReportService();
+		server.registerSevice(key, service);
 		ServerListener listener = new ServerListener();
-		server.setListener(listener);
-		NetworkClientListener client = new NetworkClientListener("localhost:" + server.getListeningPort());
+		service.setListener(listener);
+		NetworkClientListener client = new NetworkClientListener("localhost:" + server.getListeningPort() + ":" + key);
 		Analyzer.instance().setListener(client);
 		final DeadlockingToString lock1 = new DeadlockingToString();
 		final DeadlockingToString lock2 = new DeadlockingToString();
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			public void run() {
 				synchronized(lock1) {
 					synchronized(lock2) {
@@ -737,22 +693,10 @@ public class Main {
 				}
 			} 
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e1) {
-			e1.printStackTrace();
-		}
-		try {
-			synchronized(lock2) {
-				synchronized(lock1) {
-					code();
-				}
+		synchronized(lock2) {
+			synchronized(lock1) {
+				code();
 			}
-			fail("should throw an exception");
-		}
-		catch(RuntimeException e) {
-			assertTrue(e.getMessage().contains("ERROR"));
 		}
 		client.stop();
 		server.stop();
@@ -761,6 +705,16 @@ public class Main {
 		assertTrue(listener.wasCalled);
 	}
 	
+	private void fork(Runnable runnable) {
+		Thread thread = new Thread(runnable);
+		thread.start();
+		try {
+			thread.join();
+		} catch (InterruptedException e1) {
+			e1.printStackTrace();
+		}
+	}
+
 	@Test
 	public void testLocalStackIsProper() {
 		final ReentrantLock lock = new ReentrantLock();
@@ -768,7 +722,7 @@ public class Main {
 		lock.lock();
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 1);
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
@@ -776,15 +730,10 @@ public class Main {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 1);
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 1);
 		lock.unlock();
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
+		assertNoConflict();
 	}
 
 	@Test
@@ -793,7 +742,7 @@ public class Main {
 		lock.lock();
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 1);
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
@@ -801,18 +750,12 @@ public class Main {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 		
 		final CustomLock lock2 = new CustomLock();
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 		
-		thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
@@ -820,16 +763,11 @@ public class Main {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 1);
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 		lock2.unlock();
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 		assertTrue(Analyzer.instance().getInternalErrorCount() == 0);
+		assertNoConflict();
 	}
 
 	@Test
@@ -842,7 +780,7 @@ public class Main {
 		signal.signal_wait();
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
@@ -850,12 +788,6 @@ public class Main {
 				assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		assertTrue(Analyzer.instance().getCurrentLockCount() == 0);
 		assertTrue(reporter.hasNoErrors());
 	}
@@ -863,8 +795,6 @@ public class Main {
 	@Test
 	public void testSignalingWithLocks() {
 		Analyzer.instance().setThrowsOnError(false);
-		ConflictReporter reporter = new ConflictReporter();
-		Analyzer.instance().setListener(reporter);
 
 		final CustomSignal signal = new CustomSignal();
 		Object lock1 = new Object();
@@ -873,7 +803,7 @@ public class Main {
 			signal.signal_wait();
 		}
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				synchronized(lock2) {
@@ -881,20 +811,12 @@ public class Main {
 				}
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		assertTrue(reporter.hasNoErrors());
+		assertNoConflict();
 	}
 	
 	@Test
 	public void testSignalingWithLocks2() {
 		Analyzer.instance().setThrowsOnError(false);
-		ConflictReporter reporter = new ConflictReporter();
-		Analyzer.instance().setListener(reporter);
 
 		final CustomSignal signal = new CustomSignal();
 		Object lock1 = new Object();
@@ -905,14 +827,12 @@ public class Main {
 		synchronized(lock1) {
 			signal.signal_notify();
 		}
-		assertTrue(reporter.hasNoErrors());
+		assertNoConflict();
 	}
 
 	@Test
 	public void testSignalingWithSameLock() {
 		Analyzer.instance().setThrowsOnError(false);
-		ConflictReporter reporter = new ConflictReporter();
-		Analyzer.instance().setListener(reporter);
 
 		final CustomSignal signal = new CustomSignal();
 		Object lock1 = new Object();
@@ -924,7 +844,7 @@ public class Main {
 			}
 		}
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				synchronized(lock3) {
@@ -934,20 +854,12 @@ public class Main {
 				}
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		assertTrue(reporter.gotErrorSignal);
+		assertConflictSignalError();
 	}
 	
 	@Test
 	public void testSignalingWithSameLock2() {
 		Analyzer.instance().setThrowsOnError(false);
-		ConflictReporter reporter = new ConflictReporter();
-		Analyzer.instance().setListener(reporter);
 
 		final CustomSignal signal = new CustomSignal();
 		final Object lock1 = new Object();
@@ -959,7 +871,7 @@ public class Main {
 			}
 		}
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				synchronized(lock1) {
@@ -969,20 +881,12 @@ public class Main {
 				}
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		assertTrue(reporter.gotErrorSignal);
+		assertConflictSignalError();
 	}
 	
 	@Test
 	public void testSignalingWithSameLock3() {
 		Analyzer.instance().setThrowsOnError(false);
-		ConflictReporter reporter = new ConflictReporter();
-		Analyzer.instance().setListener(reporter);
 
 		final CustomSignal signal = new CustomSignal();
 		final Object lock1 = new Object();
@@ -994,7 +898,7 @@ public class Main {
 			}
 		}
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				synchronized(lock2) {
@@ -1004,13 +908,7 @@ public class Main {
 				}
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		assertTrue(reporter.gotErrorSignal);
+		assertConflictSignalError();
 	}
 
 	@Test
@@ -1025,24 +923,18 @@ public class Main {
 			signal.signal_wait();
 		}
 		
-		Thread thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				signal.signal_notify();
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		assertFalse(reporter.gotErrorSignal);
 		
 		// second acquisition
 		signal.signal_wait();
 
-		thread = new Thread(new Runnable() {
+		fork(new Runnable() {
 			@Override
 			public void run() {
 				synchronized(lock1) {
@@ -1050,12 +942,6 @@ public class Main {
 				}
 			}
 		});
-		thread.start();
-		try {
-			thread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
 		assertTrue(reporter.gotErrorSignal);
 		assertTrue(reporter.conflict == signal);
 		assertTrue(reporter.lock == signal);

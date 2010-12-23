@@ -13,63 +13,38 @@ package com.freescale.deadlockpreventer;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.net.ServerSocket;
-import java.net.Socket;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 
-public class QueryService {
+import com.freescale.deadlockpreventer.NetworkServer.Session;
+
+public class QueryService implements NetworkServer.IService {
+
+	public static String ID = "report";
 
 	public static String VERSION_ID = "1.0.0";
-	
-	public static int DEFAULT_PORT = 43538;
-	
+		
 	private static String QUERY_DUMP_LOCKS;
 	
 	public QueryService() {}
 	
 	public static class Client {
-		Socket socket;
-	    PrintStream output;
-	    DataInputStream input;
-
-	    String serverAddress;
+		NetworkServer.Session session;
 		boolean connected = false;
 
 	    public Client(String value) {
-    		serverAddress = value;
-    		String[] args = serverAddress.split(":");
-    		int port = DEFAULT_PORT;
-    		if (args.length > 1)
-    			port = Integer.parseInt(args[1]);
-    		try {
-    			socket = new Socket(args[0], port);
-    		} catch (UnknownHostException e) {
-    			e.printStackTrace();
-    		} catch (IOException e) {
-    			e.printStackTrace();
-    		}
-    	    try {
-    	       output = new PrintStream(socket.getOutputStream());
-    	    }
-    	    catch (IOException e) {
-    	       System.out.println(e);
-    	    }
-    	    try {
-    	       input = new DataInputStream(socket.getInputStream());
-    	    }
-    	    catch (IOException e) {
-    	       System.out.println(e);
-    	    }
-
-           connected = true;
+			try {
+				session = NetworkServer.connect(value);
+				connected = true;
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 	    }
 	    
 	    public void start() {
 			Thread thread = new Thread(new Runnable() {
 				@Override
 				public void run() {
-					Thread clientThread = new Thread(new ClientConnection(socket));
+					Thread clientThread = new Thread(new ClientConnection(session));
 					clientThread.start();
 				}
 			});
@@ -77,106 +52,43 @@ public class QueryService {
 	    }
 
 	    public void stop() {
-			try {
-				socket.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			session.close();
 		}
 	}
 	
-	public static class Server {
-		ServerConnection connection = null;
-		ServerSocket server;
-	    PrintStream output;
-	    DataInputStream input;
-	    Thread thread;
+	ServerConnection connection = null;
+	    
+    public boolean isConnected() {
+    	synchronized(this) {
+    		return connection != null;
+    	}
+    }
+    
+    public ILock[] getLocks() {
+    	Message msg = new Message(new String[] {QUERY_DUMP_LOCKS});
+    	Message result = connection.request(msg);
+    	return parseLocks(result.getStrings());
+    }
 
-	    public void start(int port) {
-			try {
-		       server  = new ServerSocket(port);
-			}
-			catch (IOException e) {
-			   System.out.println(e);
-			}
-			thread = new Thread(new Runnable() {
-				@Override
-				public void run() {
-					while (true) {
-						try {
-							final Socket socket = server.accept();
-					    	synchronized(Server.this) {
-								if (connection != null)
-									connection.stop();
-								connection = new ServerConnection(socket);
-					    	}
-						} catch (SocketException e) {
-							break;
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					}
-				}
-			});
-			thread.start();
-	    }
-	    
-	    public void stop() {
-	    	synchronized(this) {
-		    	try {
-					server.close();
-				} catch (IOException e) {
-					e.printStackTrace();
-				}
-		    	if (connection != null)
-		    		connection.stop();
-	    	}
-	    }
-	    
-	    public boolean isConnected() {
-	    	synchronized(this) {
-	    		return connection != null;
-	    	}
-	    }
-	    
-	    public ILock[] getLocks() {
-	    	Message msg = new Message(new String[] {QUERY_DUMP_LOCKS});
-	    	Message result = connection.request(msg);
-	    	return parseLocks(result.getStrings());
-	    }
-	}
-	
-	private static ILock[] parseLocks(String[] strings) {
+    private static ILock[] parseLocks(String[] strings) {
 		return new Statistics(strings).locks();
 	}
 
 	private static class ServerConnection {
 
-		Socket socket;
-		DataInputStream input;
-	    PrintStream output;
+		NetworkServer.Session session;
 		
-		public ServerConnection(Socket socket) {
-			this.socket = socket;
-			try {
-				input = new DataInputStream(socket.getInputStream());
-				output = new PrintStream(socket.getOutputStream());
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+		public ServerConnection(NetworkServer.Session session) {
+			this.session = session;
 		}
 
 		public void stop() {
-			try {
-				socket.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+			session.close();
 		}
 
 		public Message request(Message msg) {
 			try {
-				return msg.request(output, input);
+				return msg.request(session.getOutput(), session.getInput());
 			} catch (SocketException e) {
 			} catch (IOException e) {
 			}
@@ -186,38 +98,32 @@ public class QueryService {
 
 	private static class ClientConnection implements Runnable{
 
-		Socket socket;
+		NetworkServer.Session session;
 		
-		public ClientConnection(Socket socket) {
-			this.socket = socket;
+		public ClientConnection(NetworkServer.Session session) {
+			this.session = session;
 		}
 
 		@Override
 		public void run() {
-			DataInputStream input;
-		    PrintStream output;
-		    try {
-				input = new DataInputStream(socket.getInputStream());
-				output = new PrintStream(socket.getOutputStream());
-				Message message = new Message();
-				while(true) {
-					try {
-						message.readMessage(input);
-						Message result = processQuery(message);
-						if (result != null) {
-							message.sendOK(output);
-							result.request(output, input);
-						}
-						else
-							message.sendError(output, "error");
-					} catch (SocketException e) {
-						break;
-					} catch (IOException e) {
-						message.sendError(output, e.toString());
+			DataInputStream input = session.getInput();
+		    PrintStream output = session.getOutput();
+		    Message message = new Message();
+			while(true) {
+				try {
+					message.readMessage(input);
+					Message result = processQuery(message);
+					if (result != null) {
+						message.sendOK(output);
+						result.request(output, input);
 					}
+					else
+						message.sendError(output, "error");
+				} catch (SocketException e) {
+					break;
+				} catch (IOException e) {
+					message.sendError(output, e.toString());
 				}
-			} catch (IOException e) {
-				e.printStackTrace();
 			}
 		}
 	}
@@ -237,89 +143,32 @@ public class QueryService {
 		String[] strings;
 		
 		public Message request(PrintStream output, DataInputStream input) throws IOException {
-			writeString(output, VERSION_ID);
-			writeStringArray(output, strings);
+			NetworkUtil.writeString(output, VERSION_ID);
+			NetworkUtil.writeStringArray(output, strings);
 
 			output.flush();
-			String result = readString(input);
+			String result = NetworkUtil.readString(input);
 			if (!result.equals("OK"))
 				throw new IOException("error returned from the server:" + result);
-			Message content = new Message(readStringArray(input)); 
+			Message content = new Message(NetworkUtil.readStringArray(input)); 
 			return content;
 		}
 
 		public void readMessage(DataInputStream input) throws IOException {
-			String version = readString(input);
+			String version = NetworkUtil.readString(input);
 			if (!version.equals(VERSION_ID)) {
 				throw new IOException("version incompatible: server(" + VERSION_ID + ") , client(" + version + ")");
 			}
-			strings = readStringArray(input);
+			strings = NetworkUtil.readStringArray(input);
 		}
 
 		public void sendError(PrintStream output, String value) {
-			writeString(output, value);
+			NetworkUtil.writeString(output, value);
 		}
 
 		public void sendOK(PrintStream output) {
-			writeString(output, "OK");
+			NetworkUtil.writeString(output, "OK");
 		}
-		
-		private static String[] readStringArray(DataInputStream input) throws IOException {
-			String str = readString(input);
-			int count = Integer.parseInt(str);
-			String[] array = new String[count];
-			for (int i = 0; i < count; i++)
-				array[i] = readString(input);
-			return array;
-		}
-
-		private static void writeStringArray(PrintStream output, String[] array) {
-			writeString(output, Integer.toString(array.length));
-			for (String item : array)
-				writeString(output, item);
-		}
-
-		private static String readString(DataInputStream input) throws IOException {
-			char c = readCharacter(input);
-			while (c != '<')
-				c = readCharacter(input);
-			
-			StringBuffer buffer = new StringBuffer();
-			c = readCharacter(input);
-			while (c != '>') {
-				buffer.append(c);
-				c = readCharacter(input);
-			}
-			int length = Integer.parseInt(buffer.toString());
-			c = readCharacter(input);
-			if (c != '<')
-				throw new IOException("unexpected character: " + c);
-
-			StringBuffer string = new StringBuffer();
-			while (length--  > 0) {
-				c = readCharacter(input);
-				string.append(c);
-			}
-
-			c = readCharacter(input);
-			if (c != '>')
-				throw new IOException("unexpected character: " + c);
-				
-			return string.toString();
-		}
-		
-		private static char readCharacter(DataInputStream input) throws IOException {
-			int c = input.read();
-			if (c == -1)
-				throw new IOException("unexpected eos");
-			return (char) c;
-		}
-
-		private static void writeString(PrintStream output, String string) {
-			output.print("<" + Integer.toString(string.length()) + ">");
-			output.print("<" + string + ">");
-		}
-		
 	}
 
 	public static Message processQuery(Message query) {
@@ -330,5 +179,20 @@ public class QueryService {
 			}
 		}
 		return null;
+	}
+
+	@Override
+	public void handle(Session session) {
+    	synchronized(this) {
+			if (connection != null)
+				connection.stop();
+			connection = new ServerConnection(session);
+    	}
+	}
+
+	@Override
+	public void close() {
+    	if (connection != null)
+    		connection.stop();
 	}
 }

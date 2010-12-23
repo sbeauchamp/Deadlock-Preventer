@@ -20,6 +20,19 @@ import java.util.ListIterator;
 import java.util.Map.Entry;
 
 public class Analyzer {
+	public static final String PROPERTY_THROWING_CLASS = "com.freescale.deadlockpreventer.throwingClass";
+	public static final String PROPERTY_INSTRUMENT_ONLY_LIST = "com.freescale.deadlockpreventer.instrumentOnlyList";
+	public static final String PROPERTY_WRITE_INSTRUMENTED_CLASSES = "com.freescale.deadlockpreventer.writeInstrumentedClasses";
+	public static final String PROPERTY_TRACE = "com.freescale.deadlockpreventer.trace";
+	public static final String PROPERTY_THROWS_ON_WARNING = "com.freescale.deadlockpreventer.throwsOnWarning";
+	public static final String PROPERTY_REPORT_RECURENT_CONFLICTS = "com.freescale.deadlockpreventer.reportRecurentConflicts";
+	public static final String PROPERTY_THROWS_ON_ERROR = "com.freescale.deadlockpreventer.throwsOnError";
+	public static final String PROPERTY_REPORT_WARNINGS = "com.freescale.deadlockpreventer.reportWarnings";
+	public static final String PROPERTY_ABORT_ON_ERRORS = "com.freescale.deadlockpreventer.abortOnErrors";
+	public static final String PROPERTY_LOG_TO_FILE = "com.freescale.deadlockpreventer.logToFile";
+	public static final String PROPERTY_QUERY_SERVICE = "com.freescale.deadlockpreventer.queryService";
+	public static final String PROPERTY_REPORT_SERVICE = "com.freescale.deadlockpreventer.reportService";
+	
 	public static final int LOCK_NORMAL = 0;
 	public static final int UNLOCK_NORMAL = 1;
 	public static final int LOCK_COUNTED = 2;
@@ -92,39 +105,41 @@ public class Analyzer {
 	}
 	
 	private Analyzer() {
-		String value = System.getProperty("com.freescale.deadlockpreventer.connectToServer");
+		String value = System.getProperty(PROPERTY_REPORT_SERVICE);
 		if (value != null) {
 			listener = new NetworkClientListener(value);
+			QueryService.Client client = new QueryService.Client(value);
+			client.start();
 		}
-		
-		value = System.getProperty("com.freescale.deadlockpreventer.connectToQueryServer");
+
+		value = System.getProperty(PROPERTY_QUERY_SERVICE);
 		if (value != null) {
 			QueryService.Client client = new QueryService.Client(value);
 			client.start();
 		}
 
-		value = System.getProperty("com.freescale.deadlockpreventer.logToFile");
+		value = System.getProperty(PROPERTY_LOG_TO_FILE);
 		if (value != null) {
 			listener = new FileListener(value);
 		}
 
-		abortOnErrors = Boolean.getBoolean("com.freescale.deadlockpreventer.abortOnErrors");
-		reportWarningInSameThreadConflicts = Boolean.getBoolean("com.freescale.deadlockpreventer.reportWarnings");
-		throwsOnError = Boolean.getBoolean("com.freescale.deadlockpreventer.throwsOnError");
-		reportRecurentConflicts = Boolean.getBoolean("com.freescale.deadlockpreventer.reportRecurentConflicts");
-		throwsOnWarning = Boolean.getBoolean("com.freescale.deadlockpreventer.throwsOnWarning");
-		trace = Boolean.getBoolean("com.freescale.deadlockpreventer.trace");
-		writeInstrumentedClasses = Boolean.getBoolean("com.freescale.deadlockpreventer.writeInstrumentedClasses");
+		abortOnErrors = Boolean.getBoolean(PROPERTY_ABORT_ON_ERRORS);
+		reportWarningInSameThreadConflicts = Boolean.getBoolean(PROPERTY_REPORT_WARNINGS);
+		throwsOnError = Boolean.getBoolean(PROPERTY_THROWS_ON_ERROR);
+		reportRecurentConflicts = Boolean.getBoolean(PROPERTY_REPORT_RECURENT_CONFLICTS);
+		throwsOnWarning = Boolean.getBoolean(PROPERTY_THROWS_ON_WARNING);
+		trace = Boolean.getBoolean(PROPERTY_TRACE);
+		writeInstrumentedClasses = Boolean.getBoolean(PROPERTY_WRITE_INSTRUMENTED_CLASSES);
 		
 		// separated by semicolons (;)
-		value = System.getProperty("com.freescale.deadlockpreventer.instrumentOnlyList");
+		value = System.getProperty(PROPERTY_INSTRUMENT_ONLY_LIST);
 		if (value != null) {
 			String classes[] = value.split(";");
 			for (String cls : classes)
 				instrumentationRestrictions.put(cls.replace('.', '/'), true);
 		}
 
-		value = System.getProperty("com.freescale.deadlockpreventer.throwingClass");
+		value = System.getProperty(PROPERTY_THROWING_CLASS);
 		if (value != null) {
 			try {
 				Class<?> cls = Class.forName(value);
@@ -547,12 +562,8 @@ public class Analyzer {
 											precedentConflict.lock = precedent.lock;
 											precedentConflict.stackTrace = conflict.getContext(getThreadID());
 											boolean shouldThrow = reportConflict(TYPE_WARNING, getThreadID(), getThreadID(), info, precedent, conflict, precedentConflict);
-											if (throwsOnWarning || shouldThrow) {
-												// necessary because the leave lock won't be handled from
-												// the normal exception handler in the initial enter_lock
-												rollBack = true;
+											if (throwsOnWarning || shouldThrow)
 												throwException(TYPE_WARNING, info); 
-											}
 										}
 									}
 									else {
@@ -565,12 +576,8 @@ public class Analyzer {
 											precedentConflict.stackTrace = entry.getValue();
 											shouldThrow |= reportConflict(TYPE_ERROR, getThreadID(), entry.getKey(), info, precedent, conflict, precedentConflict);
 										}
-										if (throwsOnError || shouldThrow) {
-											// necessary because the leave lock won't be handled from
-											// the normal exception handler in the initial enter_lock
-											rollBack = true;
+										if (throwsOnError || shouldThrow)
 											throwException(TYPE_ERROR, info);
-										}
 									}
 								}
 							}

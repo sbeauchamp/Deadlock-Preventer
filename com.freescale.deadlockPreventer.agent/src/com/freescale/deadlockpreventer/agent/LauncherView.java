@@ -78,6 +78,7 @@ public class LauncherView extends ViewPart implements IAgent {
 	private Button throwsException;
 	private Button interactive;
 	private StyledText outputText;
+	private QueryService queryservice;
 	private ArrayList<Conflict> conflictList = new ArrayList<LauncherView.Conflict>();
 
 	private Button logAndContinue;
@@ -160,7 +161,20 @@ public class LauncherView extends ViewPart implements IAgent {
 		case VM_ARG_BOOT_CLASSPATH:
 			return "-Xbootclasspath/a:\"" + deadlockPreventerJarPath.getAbsolutePath() + "\";\"" + javaassistJarPath.getAbsolutePath() + "\"";
 		case VM_ARG_BOOT_SERVER_PORT:
-			return "-Dcom.freescale.deadlockpreventer.connectToServer=localhost:" + Activator.getDefault().getServer().getListeningPort();
+			{
+				NetworkServer server = Activator.getDefault().getServer();
+				String reportKey = server.createNewSessionKey(ReportService.ID);
+				ReportService service = new ReportService();
+				service.setListener(new ReportServiceListener());
+				server.registerSevice(reportKey, service);
+				
+				String queryKey = server.createNewSessionKey(QueryService.ID);
+				queryservice = new QueryService();
+				server.registerSevice(queryKey, queryservice);
+
+				return "-D" + Analyzer.PROPERTY_REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + reportKey + 
+				" -D" + Analyzer.PROPERTY_QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + queryKey;
+			}
 		}
 		return null;
 	}
@@ -348,6 +362,25 @@ public class LauncherView extends ViewPart implements IAgent {
 		
 	}
 
+	class ReportServiceListener implements ReportService.IListener
+	{
+		@Override
+		public int report(String type, String threadID,
+				String conflictThreadID, String lock, String[] lockStack,
+				String precedent, String[] precedentStack, String conflict,
+				String[] conflictStack, String conflictPrecedent,
+				String[] conflictPrecedentStack, String message) {
+				final Conflict conflictItem = new Conflict(type, threadID, conflictThreadID, 
+					lock, lockStack, 
+					precedent, precedentStack,
+					conflict, conflictStack,
+					conflictPrecedent, conflictPrecedentStack, message);
+				ConflictHandler handler = new ConflictHandler(conflictItem);
+				Display.getDefault().syncExec(handler);
+				return handler.result;
+			}
+	}
+	
 	private void createConflictsPart(Composite conflicts) {
 		viewer = new TableViewer(conflicts, SWT.MULTI | SWT.H_SCROLL | SWT.V_SCROLL);
 		GridData layoutData = new GridData(SWT.FILL, SWT.FILL, true, true);
@@ -356,22 +389,6 @@ public class LauncherView extends ViewPart implements IAgent {
 		viewer.setContentProvider(new ViewContentProvider());
 		viewer.setLabelProvider(new ViewLabelProvider());
 		
-		Activator.getDefault().getServer().setListener(new NetworkServer.IListener() {
-			public int report(String type, String threadID, String conflictThreadID, 
-					String lock, String[] lockStack, 
-					String precedent, String[] precedentStack,
-					String conflict, String[] conflictStack,
-					String conflictPrecedent, String[] conflictPrecedentStack, String message) {
-				final Conflict conflictItem = new Conflict(type, threadID, conflictThreadID, 
-								lock, lockStack, 
-								precedent, precedentStack,
-								conflict, conflictStack,
-								conflictPrecedent, conflictPrecedentStack, message);
-				ConflictHandler handler = new ConflictHandler(conflictItem);
-				Display.getDefault().syncExec(handler);
-				return handler.result;
-			}
-		});
 		viewer.getControl().setLayoutData(layoutData);
 		viewer.addDoubleClickListener(new IDoubleClickListener() {
 			@Override

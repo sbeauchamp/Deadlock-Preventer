@@ -28,7 +28,6 @@ public class Activator extends AbstractUIPlugin {
 	private static Activator plugin;
 	
 	private NetworkServer server = new NetworkServer();
-	private NetworkQuery.Server queryServer = new NetworkQuery.Server();
 	
 	public NetworkServer getServer() {
 		return server;
@@ -48,7 +47,6 @@ public class Activator extends AbstractUIPlugin {
 		super.start(context);
 		plugin = this;
 		server.start(0);
-		queryServer.start(0);
 	}
 
 	/*
@@ -57,7 +55,6 @@ public class Activator extends AbstractUIPlugin {
 	 */
 	public void stop(BundleContext context) throws Exception {
 		server.stop();
-		queryServer.stop();
 		plugin = null;
 		super.stop(context);
 	}

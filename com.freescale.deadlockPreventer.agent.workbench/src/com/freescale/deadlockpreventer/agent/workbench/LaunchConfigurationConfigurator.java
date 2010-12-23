@@ -214,22 +214,26 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			String[] attributes = attribute.split(SPACE);
 			StringBuffer newAttributes = new StringBuffer();
 			
-			String prefixAgent = agent.getVMArg(IAgent.VM_ARG_AGENT).split(":")[0];
-			String prefixBootClassPath = agent.getVMArg(IAgent.VM_ARG_BOOT_CLASSPATH).split(":")[0];
-			String prefixServerPort = agent.getVMArg(IAgent.VM_ARG_BOOT_SERVER_PORT).split(":")[0];
+			String prefixAgent = agent.getVMArg(IAgent.VM_ARG_AGENT);
+			String prefixBootClassPath = agent.getVMArg(IAgent.VM_ARG_BOOT_CLASSPATH);
+			String prefixServerPort = agent.getVMArg(IAgent.VM_ARG_BOOT_SERVER_PORT);
 			
+			String prefixAgentPrefix = prefixAgent.split(":")[0];
+			String prefixBootClassPathPrefix = prefixBootClassPath.split(":")[0];
+			String prefixServerPortPrefix = prefixServerPort.split("=")[0];
+
 			for (String attr : attributes) {
-				if (attr.startsWith(prefixAgent) ||
-						attr.startsWith(prefixBootClassPath) ||
-						attr.startsWith(prefixServerPort))
+				if (attr.startsWith(prefixAgentPrefix) ||
+						attr.startsWith(prefixBootClassPathPrefix) ||
+						attr.startsWith(prefixServerPortPrefix))
 					continue;
 				newAttributes.append(attr + SPACE);
 			}
 			final String cleanedUpAttributes = newAttributes.toString();
 			
-			newAttributes.append(agent.getVMArg(IAgent.VM_ARG_AGENT) + SPACE);
-			newAttributes.append(agent.getVMArg(IAgent.VM_ARG_BOOT_CLASSPATH) + SPACE);
-			newAttributes.append(agent.getVMArg(IAgent.VM_ARG_BOOT_SERVER_PORT));
+			newAttributes.append(prefixAgent + SPACE);
+			newAttributes.append(prefixBootClassPath + SPACE);
+			newAttributes.append(prefixServerPort);
 			String additional = agent.getVMArg(IAgent.VM_ADDITIONAL_ARGUMENTS);
 			if (additional != null)
 				newAttributes.append(SPACE + additional);

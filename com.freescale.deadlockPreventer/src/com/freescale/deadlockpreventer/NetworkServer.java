@@ -16,72 +16,114 @@ import java.io.PrintStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
-import java.util.ArrayList;
+import java.net.UnknownHostException;
+import java.util.HashMap;
 
 public class NetworkServer {
-	public interface IListener {
-		public int report(String type, String threadID, String conflictThreadID, 
-				String lock, String[] lockStack, 
-				String precedent, String[] precedentStack,
-				String conflict, String[] conflictStack,
-				String conflictPrecedent, String[] conflictPrecedentStack, String message);
-	}
+	
+	ServerSocket server;
+	
+	public interface IService {
+		void handle(Session session);
 
-	public void setListener(IListener listener) {
-		this.listener = listener;
+		void close();
 	}
 	
-	IListener listener = new ConsoleListener();
-	ServerSocket server;
-	ArrayList<Socket> sockets = new ArrayList<Socket>();
-	int actualPort = 0;
-
-	private final class ClientConnection implements Runnable {
-		private final Socket socket;
-
-		private ClientConnection(Socket socket) {
+	public static class Session {
+		public Session(Socket socket) {
 			this.socket = socket;
-		}
-
-		@Override
-		public void run() {
-			DataInputStream input;
-		    PrintStream output;
-		    try {
+			try {
 				input = new DataInputStream(socket.getInputStream());
 				output = new PrintStream(socket.getOutputStream());
-				NetworkClientListener.Message message = new NetworkClientListener.Message();
-				while(true) {
-					try {
-						message.readMessage(input);
-						int result = listener.report(message.getType(), 
-								message.getThreadID(), 
-								message.getConflictThreadID(),
-								message.getLock(),
-								message.getLockStack(),
-								message.getPrecedent(),
-								message.getPrecedentStack(),
-								message.getConflict(),
-								message.getConflictStack(),
-								message.getConflictPrecedent(),
-								message.getConflictPrecedentStack(),
-								message.getMessage());
-						message.sendResponse(output, result);
-					} catch (SocketException e) {
-						break;
-					} catch (IOException e) {
-						message.sendError(output, e.toString());
-					}
-				}
+				key = NetworkUtil.readString(input);
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
 		}
-	}
 		
+		public Session(Socket socket, String key) throws IOException {
+			this.socket = socket;
+			this.key = key;
+			String result = "ERROR";
+			input = new DataInputStream(socket.getInputStream());
+			output = new PrintStream(socket.getOutputStream());
+			NetworkUtil.writeString(output, key);
+			result = NetworkUtil.readString(input);
+			if (!result.equals("OK"))
+				throw new IOException("Error connecting to network server: " + result);
+		}
+
+		public void close() {
+			try {
+				socket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+		
+		public void ok() {
+			NetworkUtil.writeString(output, "OK");
+		}
+
+		public void error() {
+			NetworkUtil.writeString(output, "ERROR, NO SERVICE");
+			close();
+		}
+		
+		public String getKey() {
+			return key;
+		}
+
+		public DataInputStream getInput() {
+			return input;
+		}
+
+		public PrintStream getOutput() {
+			return output;
+		}
+
+		private String key;
+		private Socket socket;
+		private DataInputStream input;
+		private PrintStream output;
+	}
+	
+	// the key is serviceID.sessionID
+	HashMap<String, IService> services = new HashMap<String, IService>();
+	
+	int actualPort = 0;
+
+	int latestSessionID = 0;
+
+	public static int DEFAULT_PORT = 43537;
+	
+	public String createNewSessionKey(String serviceID) {
+		int sessionID = createNewSessionID();
+		return createKey(serviceID, sessionID);
+	}
+	
+	private int createNewSessionID() {
+		synchronized(this) {
+			return latestSessionID;
+		}
+	}
+	
     public int getListeningPort() {
     	return server.getLocalPort();
     }
+
+    
+    public NetworkServer() {
+    }
+    
+    public void registerSevice(String sessionKey, IService service)
+    {
+    	services.put(sessionKey, service);
+    }
+    
+	private String createKey(String serviceID, int sessionID) {
+		return serviceID + "." + Integer.toHexString(sessionID);
+	}
 
 	public Thread start(int port) {
 		try {
@@ -97,9 +139,14 @@ public class NetworkServer {
 				while (true) {
 					try {
 						final Socket socket = server.accept();
-						sockets.add(socket);
-						Thread clientThread = new Thread(new ClientConnection(socket));
-						clientThread.start();
+						Session session = new Session(socket);
+						IService service = services.get(session.getKey());
+						if (service != null) {
+							session.ok();
+							service.handle(session);
+						}
+						else
+							session.error();
 					} catch (SocketException e) {
 						break;
 					} catch (IOException e) {
@@ -112,15 +159,35 @@ public class NetworkServer {
 		return thread;
     }
 	
-	public void stop() {
-		for (Socket socket : sockets) {
-			try {
-				socket.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
+	/**
+	 * Creates a new socket to the server from a client
+	 * @param value formatted address:port:session
+	 * @return
+	 * @throws IOException 
+	 */
+	public static Session connect(String value) throws IOException {
+		Socket socket;
+		String serverAddress = value;
+		String[] args = serverAddress.split(":");
+		int port = NetworkServer.DEFAULT_PORT;
+		if (args.length > 1)
+			port = Integer.parseInt(args[1]);
+		try {
+			socket = new Socket(args[0], port);
+		} catch (UnknownHostException e) {
+			throw new IOException(e.getMessage());
 		}
-		sockets.clear();
+		String key = "0.0";
+		if (args.length > 2)
+			key = args[2];
+	    return new Session(socket, key);
+	}
+	
+	public void stop() {
+		for (IService service : services.values()) {
+			service.close();
+		}
+		services.clear();
 		try {
 			server.close();
 		} catch (IOException e) {
@@ -130,7 +197,7 @@ public class NetworkServer {
 	}
 	
 	public static void main(String[] args) {
-		int port = NetworkClientListener.DEFAULT_PORT;
+		int port = NetworkServer.DEFAULT_PORT;
 		if (args.length > 0)
 			port = Integer.parseInt(args[0]);
 		System.out.println("Starting server on port: " + port);
@@ -142,50 +209,6 @@ public class NetworkServer {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-		}
-	}
-
-	public class ConsoleListener implements IListener {
-
-		public int report(String type, String threadID,
-				String conflictThreadID, String lock, String[] lockStack,
-				String precedent, String[] precedentStack, String conflict,
-				String[] conflictStack, String conflictPrecedent,
-				String[] conflictPrecedentStack, String message) {
-			System.out.println(message);
-			try {
-				while (true) {
-					System.out.println("(c)ontinue? (a)bort? (e)xception? (d)ebug?");
-					int c = System.in.read();
-					boolean wrongEntry = false;
-					while (c != -1 && !wrongEntry) {
-						switch((char) c) {
-						case 'c':
-						case 'C':
-							return IConflictListener.CONTINUE;
-						case 'a':
-						case 'A':
-							return IConflictListener.ABORT;
-						case 'e':
-						case 'E':
-							return IConflictListener.EXCEPTION;
-						case 'd':
-						case 'D':
-							return IConflictListener.DEBUG;
-						case '\n':
-						case '\r':
-							break;
-						default:
-							wrongEntry = true;
-							break;
-						}
-						c = System.in.read();
-					}
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-			return 0;
 		}
 	}
 }
