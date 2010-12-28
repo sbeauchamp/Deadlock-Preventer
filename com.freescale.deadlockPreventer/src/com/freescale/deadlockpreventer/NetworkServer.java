@@ -62,11 +62,19 @@ public class NetworkServer {
 		}
 		
 		public void ok() {
-			NetworkUtil.writeString(output, "OK");
+			try {
+				NetworkUtil.writeString(output, "OK");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 
 		public void error() {
-			NetworkUtil.writeString(output, "ERROR, NO SERVICE");
+			try {
+				NetworkUtil.writeString(output, "ERROR, NO SERVICE");
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 			close();
 		}
 		
@@ -198,21 +206,5 @@ public class NetworkServer {
 			e.printStackTrace();
 		}
 		server = null;
-	}
-	
-	public static void main(String[] args) {
-		int port = NetworkServer.DEFAULT_PORT;
-		if (args.length > 0)
-			port = Integer.parseInt(args[0]);
-		System.out.println("Starting server on port: " + port);
-		NetworkServer networkServer = new NetworkServer();
-		Thread thread = networkServer.start(port);
-		if (thread != null) {
-			try {
-				thread.join();
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
 	}
 }

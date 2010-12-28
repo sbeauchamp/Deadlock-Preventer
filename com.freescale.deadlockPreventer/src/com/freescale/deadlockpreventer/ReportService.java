@@ -54,7 +54,11 @@ public class ReportService implements NetworkServer.IService {
 				} catch (SocketException e) {
 					break;
 				} catch (IOException e) {
-					message.sendError(output, e.toString());
+					try {
+						message.sendError(output, e.toString());
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 				}
 			}
 		}

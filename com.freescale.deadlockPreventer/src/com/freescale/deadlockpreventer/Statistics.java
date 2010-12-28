@@ -35,11 +35,15 @@ public class Statistics
 							locks.put(precedentId, precedent);
 						}
 						precedent.recordStackTrace(info.stackTrace);
-						ContextImpl precedentContext = new ContextImpl(precedent, info);
-						lock.addPrecedent(precedentContext);
+						if (!lock.hasPrecedent(precedentId)) {
+							ContextImpl precedentContext = new ContextImpl(precedent, info);
+							lock.addPrecedent(precedentContext);
+						}
 
-						ContextImpl followerContext = new ContextImpl(lock, info);
-						precedent.addFollower(followerContext);
+						if (!precedent.hasFollower(id)) {
+							ContextImpl followerContext = new ContextImpl(lock, info);
+							precedent.addFollower(followerContext);
+						}
 					}
 				}
 			}
@@ -49,6 +53,10 @@ public class Statistics
 	public Statistics(String[] strings) {
 		LinkedList<String> stack = new LinkedList<String>(Arrays.asList(strings));
 		
+		initialize(stack);
+	}
+
+	private void initialize(LinkedList<String> stack) {
 		int count = Integer.parseInt(stack.removeFirst());
 		
 		while (count-- > 0) {
@@ -60,7 +68,13 @@ public class Statistics
 		}
 	}
 
-	public String[] serialize() {
+	public Statistics(ArrayList<String> strings) {
+		LinkedList<String> stack = new LinkedList<String>(strings);
+		
+		initialize(stack);
+	}
+
+	public ArrayList<String> serialize() {
 		ArrayList<String> result = new ArrayList<String>();
 		
 		Collection<LockImpl> collection = locks.values();
@@ -70,7 +84,7 @@ public class Statistics
 		for (LockImpl lock : collection) {
 			lock.serialize(result);
 		}
-		return result.toArray(new String[0]);
+		return result;
 	}
 
 	public ILock[] locks() {
@@ -94,8 +108,8 @@ class LockImpl implements ILock
 {
 	String id;
 	String[] stackTrace = new String[0];
-	ArrayList<ContextImpl> precedents = new ArrayList<ContextImpl>();
-	ArrayList<ContextImpl> followers = new ArrayList<ContextImpl>();
+	HashMap<String, ContextImpl> precedents = new HashMap<String, ContextImpl>();
+	HashMap<String, ContextImpl> followers = new HashMap<String, ContextImpl>();
 	
 	public LockImpl(Object object) {
 		id = Analyzer.safeToString(object);
@@ -111,10 +125,10 @@ class LockImpl implements ILock
 	}
 
 	public void completeInitialization(HashMap<String, LockImpl> locks) {
-		for (ContextImpl context : precedents) {
+		for (ContextImpl context : precedents.values()) {
 			context.completeInitialization(locks);
 		}
-		for (ContextImpl context : followers) {
+		for (ContextImpl context : followers.values()) {
 			context.completeInitialization(locks);
 		}
 	}
@@ -127,14 +141,14 @@ class LockImpl implements ILock
 		// 3. un serialize each precedent
 		while (count-- > 0) {
 			ContextImpl context = new ContextImpl(stack);
-			precedents.add(context);
+			precedents.put(context.getLock().getID(), context);
 		}
 		// 4. serialize the followers count
 		count = Integer.parseInt(stack.removeFirst());
 		// 5. serialize each follower
 		while (count-- > 0) {
 			ContextImpl context = new ContextImpl(stack);
-			followers.add(context);
+			followers.put(context.getLock().getID(), context);
 		}
 		// 6. un-serialize the stack trace count
 		count = Integer.parseInt(stack.removeFirst());
@@ -150,13 +164,13 @@ class LockImpl implements ILock
 		// 2. serialize the precedent count
 		result.add(Integer.toString(precedents.size()));
 		// 3. serialize each precedent
-		for (ContextImpl context : precedents) {
+		for (ContextImpl context : precedents.values()) {
 			context.serialize(result);
 		}
 		// 4. serialize the followers count
 		result.add(Integer.toString(followers.size()));
 		// 5. serialize each follower
-		for (ContextImpl context : followers) {
+		for (ContextImpl context : followers.values()) {
 			context.serialize(result);
 		}
 		// 6. serialize the stack trace count
@@ -166,12 +180,20 @@ class LockImpl implements ILock
 			result.add(stack);
 	}
 
-	public void addPrecedent(ContextImpl precedentContext) {
-		precedents.add(precedentContext);
+	public boolean hasPrecedent(String lockID) {
+		return precedents.containsKey(lockID);
+	}
+	
+	public boolean hasFollower(String lockID) {
+		return followers.containsKey(lockID);
 	}
 
-	public void addFollower(ContextImpl followerContext) {
-		followers.add(followerContext);
+	public void addPrecedent(ContextImpl context) {
+		precedents.put(context.getLock().getID(), context);
+	}
+
+	public void addFollower(ContextImpl context) {
+		followers.put(context.getLock().getID(), context);
 	}
 
 	@Override
@@ -181,12 +203,12 @@ class LockImpl implements ILock
 
 	@Override
 	public IContext[] getPrecedents() {
-		return precedents.toArray(new IContext[0]);
+		return precedents.values().toArray(new IContext[0]);
 	}
 
 	@Override
 	public IContext[] getFollowers() {
-		return followers.toArray(new IContext[0]);
+		return followers.values().toArray(new IContext[0]);
 	}
 
 	@Override

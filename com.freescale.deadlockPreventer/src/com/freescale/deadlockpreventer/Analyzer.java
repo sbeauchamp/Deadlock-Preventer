@@ -13,6 +13,7 @@ package com.freescale.deadlockpreventer;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -180,8 +181,12 @@ public class Analyzer {
 		}
 	}
 
-	private void dumpLockInformation(FileWriter writer) {
+	public static void dumpLockInformation(Writer writer) {
 		ILock[] locks = new Statistics().locks();
+		dumpLockInformation(locks, writer);
+	}
+	
+	public static void dumpLockInformation(ILock[] locks, Writer writer) {
 		try {
 			for (ILock lock : locks) {
 				writer.write("lock: " + lock.getID() + ", precedents(" + lock.getPrecedents().length + " followers(" + lock.getFollowers().length + ")\n");
@@ -202,7 +207,7 @@ public class Analyzer {
 		}
 	}
 
-	private void writeStack(FileWriter writer, String prefix, String[] stackTrace) throws IOException {
+	private static void writeStack(Writer writer, String prefix, String[] stackTrace) throws IOException {
 		for (String stack : stackTrace) {
 			writer.write(prefix + stack + "\n");
 		}
@@ -765,25 +770,31 @@ public class Analyzer {
 		if (type == Analyzer.TYPE_ERROR_SIGNAL) {
 			info.print(buffer, getEmptyPrintOutHeader() + indent);
 			
+			buffer.append("\n");
 			buffer.append(getEmptyPrintOutHeader() + "While holding lock: " + safeToString(conflictPrecedent.lock)  + "\n");
 			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
 
 			if (conflictLock != null) {
-				buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired signal: " + safeToString(conflictLock.lock)  + "\n");
+				buffer.append("\n");
+				buffer.append(getEmptyPrintOutHeader() + "Previously acquired signal: " + safeToString(conflictLock.lock)  + "\n");
 				conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
 			}
 
+			buffer.append("\n");
 			buffer.append(getEmptyPrintOutHeader() + "\nPreviously held lock: " + safeToString(precedent.lock)  + " in thread: " + conflictThreadID  + "\n");
 			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
 		}
 		else {
 			info.print(buffer, getEmptyPrintOutHeader() + indent);
+			buffer.append("\n");
 			buffer.append(getEmptyPrintOutHeader() + "\nwith predecent : " + safeToString(precedent.lock) + "\n");
 			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
 			
+			buffer.append("\n");
 			buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired lock: " + safeToString(conflictLock.lock)  + " in thread: " + conflictThreadID  + "\n");
 			conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
 
+			buffer.append("\n");
 			buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired precedent: " + safeToString(conflictPrecedent.lock)  + "\n");
 			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
 		}
@@ -1027,28 +1038,25 @@ public class Analyzer {
 		}
 	}
 	
-	static ArrayList<Object> uniqueIDSet = new ArrayList<Object>();
+	static ObjectCache<Integer> uniqueIDSet = new ObjectCache<Integer>();
+	static int uniqueIDCount = 0;
 	
 	public static String safeToString(Object obj) {
 		if (obj != null) {
+			String id = null;
+			synchronized(uniqueIDSet) {
+				Integer idValue = uniqueIDSet.get(obj);
+				if (idValue == null) {
+					uniqueIDCount++;
+					uniqueIDSet.put(obj, new Integer(uniqueIDCount));
+					id = Integer.toString(uniqueIDCount);
+				}
+				else
+					id = idValue.toString();
+			}
 			Class<?> cls = obj.getClass();
 			if (cls.equals(CustomLock.class))
 				cls = ((CustomLock) obj).lock.getClass();
-			
-			int id = -1;
-			synchronized(uniqueIDSet) {
-				for (int i = 0; i < uniqueIDSet.size(); i++) {
-					Object reference = uniqueIDSet.get(i);
-					if (obj == reference) {
-						id = i;
-						break;
-					}
-				}
-				if (id == -1) {
-					id = uniqueIDSet.size();
-					uniqueIDSet.add(obj);
-				}
-			}
 			return cls.getName() + " (id=" + id + ")";
 		}
 		return new String();

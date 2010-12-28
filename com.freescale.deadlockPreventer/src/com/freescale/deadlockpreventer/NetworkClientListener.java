@@ -13,6 +13,8 @@ package com.freescale.deadlockpreventer;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 public class NetworkClientListener implements IConflictListener {
 
@@ -149,16 +151,16 @@ public class NetworkClientListener implements IConflictListener {
 			NetworkUtil.writeString(output, threadID);
 			NetworkUtil.writeString(output, conflictThreadID);
 			NetworkUtil.writeString(output, lock);
-			NetworkUtil.writeStringArray(output, lockStack);
+			NetworkUtil.writeStringArray(output, new ArrayList<String>(Arrays.asList(lockStack)));
 			
 			NetworkUtil.writeString(output, precedent);
-			NetworkUtil.writeStringArray(output, precedentStack);
+			NetworkUtil.writeStringArray(output, new ArrayList<String>(Arrays.asList(precedentStack)));
 
 			NetworkUtil.writeString(output, conflict);
-			NetworkUtil.writeStringArray(output, conflictStack);
+			NetworkUtil.writeStringArray(output, new ArrayList<String>(Arrays.asList(conflictStack)));
 
 			NetworkUtil.writeString(output, conflictPrecedent);
-			NetworkUtil.writeStringArray(output, conflictPrecedentStack);
+			NetworkUtil.writeStringArray(output, new ArrayList<String>(Arrays.asList(conflictPrecedentStack)));
 
 			NetworkUtil.writeString(output, message);
 
@@ -188,25 +190,25 @@ public class NetworkClientListener implements IConflictListener {
 			conflictThreadID = NetworkUtil.readString(input);
 
 			lock = NetworkUtil.readString(input);
-			lockStack = NetworkUtil.readStringArray(input);;
+			lockStack = NetworkUtil.readStringArray(input).toArray(new String[0]);
 
 			precedent = NetworkUtil.readString(input);
-			precedentStack = NetworkUtil.readStringArray(input);;
+			precedentStack = NetworkUtil.readStringArray(input).toArray(new String[0]);
 
 			conflict = NetworkUtil.readString(input);
-			conflictStack = NetworkUtil.readStringArray(input);;
-			
+			conflictStack = NetworkUtil.readStringArray(input).toArray(new String[0]);
+		
 			conflictPrecedent = NetworkUtil.readString(input);
-			conflictPrecedentStack = NetworkUtil.readStringArray(input);;
+			conflictPrecedentStack = NetworkUtil.readStringArray(input).toArray(new String[0]);
 
 			message = NetworkUtil.readString(input);
 		}
 
-		public void sendError(PrintStream output, String value) {
+		public void sendError(PrintStream output, String value) throws IOException {
 			NetworkUtil.writeString(output, value);
 		}
 
-		public void sendResponse(PrintStream output, int value) {
+		public void sendResponse(PrintStream output, int value) throws IOException {
 			NetworkUtil.writeString(output, "OK");
 			NetworkUtil.writeString(output,Integer.toString(value));
 		}

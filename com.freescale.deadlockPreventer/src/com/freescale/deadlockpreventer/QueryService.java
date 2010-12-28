@@ -14,6 +14,8 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import com.freescale.deadlockpreventer.NetworkServer.Session;
 
@@ -71,14 +73,14 @@ public class QueryService implements NetworkServer.IService {
     }
 
     public ILock[] getLocks() {
-    	Message msg = new Message(new String[] {QUERY_DUMP_LOCKS});
+    	Message msg = new Message(new ArrayList<String>(Arrays.asList(new String[] {QUERY_DUMP_LOCKS})));
     	Message result = connection.request(msg);
     	if (result == null)
     		return null;
     	return parseLocks(result.getStrings());
     }
 
-    private static ILock[] parseLocks(String[] strings) {
+    private static ILock[] parseLocks(ArrayList<String> strings) {
 		return new Statistics(strings).locks();
 	}
 
@@ -134,25 +136,29 @@ public class QueryService implements NetworkServer.IService {
 				} catch (SocketException e) {
 					break;
 				} catch (IOException e) {
-					message.sendError(output, e.toString());
+					try {
+						message.sendError(output, e.toString());
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
 				}
 			}
 		}
 	}
 
 	public static class Message {
-		public Message(String[] strings) {
+		public Message(ArrayList<String> strings) {
 			this.strings = strings;
 		}
 
 		public Message() {
 		}
 
-		public String[] getStrings() {
+		public ArrayList<String> getStrings() {
 			return strings;
 		}
 
-		String[] strings;
+		ArrayList<String> strings;
 		
 		public Message request(PrintStream output, DataInputStream input) throws IOException {
 			NetworkUtil.writeString(output, VERSION_ID);
@@ -179,19 +185,19 @@ public class QueryService implements NetworkServer.IService {
 			strings = NetworkUtil.readStringArray(input);
 		}
 
-		public void sendError(PrintStream output, String value) {
+		public void sendError(PrintStream output, String value) throws IOException {
 			NetworkUtil.writeString(output, value);
 		}
 
-		public void sendOK(PrintStream output) {
+		public void sendOK(PrintStream output) throws IOException {
 			NetworkUtil.writeString(output, "OK");
 		}
 	}
 
-	public static Message processQuery(Message query) {
-		String[] strs = query.getStrings();
-		if (strs.length > 0) {
-			if (strs[0].equals(QUERY_DUMP_LOCKS)) {
+	private static Message processQuery(Message query) {
+		ArrayList<String> strs = query.getStrings();
+		if (strs.size() > 0) {
+			if (strs.get(0).equals(QUERY_DUMP_LOCKS)) {
 				return new Message(new Statistics().serialize());
 			}
 		}
