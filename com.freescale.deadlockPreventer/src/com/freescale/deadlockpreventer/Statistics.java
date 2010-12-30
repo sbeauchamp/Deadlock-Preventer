@@ -80,13 +80,16 @@ public class Statistics
 					String precedentId = getLockID(info);
 					LockImpl precedent = locks.get(precedentId);
 					if (precedent == null) {
-						precedent = new LockImpl(info.getLock());
+						precedent = new IncompleteLockImpl(info.getLock());
+						((IncompleteLockImpl) precedent).order = new AcquisitionOrder();
 						locks.put(precedentId, precedent);
 					}
 					if (!result[i].hasPrecedent(precedentId)) {
 						ContextImpl precedentContext = new ContextImpl(precedent, info);
 						result[i].addPrecedent(precedentContext);
 					}
+					if (result[i].stackTrace.length == 0 && !info.contextsPerThread.isEmpty())
+						result[i].recordStackTrace(info.contextsPerThread.entrySet().iterator().next().getValue());
 				}
 			}
 

@@ -92,7 +92,7 @@ public class QueryService implements NetworkServer.IService {
 					if (transaction == null)
 						return null;
 					transactions.remove(transaction);
-					return new Message();
+					return new Message(new String[0]);
 				}
 				if (strs.get(0).equals(GET_LOCK)) {
 					String transactionID = strs.get(1);

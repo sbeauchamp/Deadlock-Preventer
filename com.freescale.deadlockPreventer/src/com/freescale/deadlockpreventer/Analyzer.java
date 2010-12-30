@@ -713,21 +713,21 @@ public class Analyzer {
 			}
 
 			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "\nPreviously held lock: " + safeToString(precedent.lock)  + " in thread: " + conflictThreadID  + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "Previously held lock: " + safeToString(precedent.lock)  + " in thread: " + conflictThreadID  + "\n");
 			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
 		}
 		else {
 			info.print(buffer, getEmptyPrintOutHeader() + indent);
 			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "\nwith predecent : " + safeToString(precedent.lock) + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "with predecent : " + safeToString(precedent.lock) + "\n");
 			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
 			
 			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired lock: " + safeToString(conflictLock.lock)  + " in thread: " + conflictThreadID  + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "Previously acquired lock: " + safeToString(conflictLock.lock)  + " in thread: " + conflictThreadID  + "\n");
 			conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
 
 			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "\nPreviously acquired precedent: " + safeToString(conflictPrecedent.lock)  + "\n");
+			buffer.append(getEmptyPrintOutHeader() + "Previously acquired precedent: " + safeToString(conflictPrecedent.lock)  + "\n");
 			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
 		}
 

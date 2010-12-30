@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.regex.Pattern;
@@ -80,6 +81,7 @@ import com.freescale.deadlockpreventer.ILock;
 import com.freescale.deadlockpreventer.NetworkServer;
 import com.freescale.deadlockpreventer.NetworkServer.Session;
 import com.freescale.deadlockpreventer.QueryService;
+import com.freescale.deadlockpreventer.QueryService.ITransaction;
 import com.freescale.deadlockpreventer.ReportService;
 
 public class LauncherView extends ViewPart implements IAgent {
@@ -193,13 +195,40 @@ public class LauncherView extends ViewPart implements IAgent {
 				}
 			}
 			if (queryService.isConnected()) {
-				ILock[] locks = null;
-				if (!queryService.isClosed())
-					locks = queryService.getLocks();
-				if (locks == null)
+				final ArrayList<StatisticsDialog.Row> locks = new ArrayList<StatisticsDialog.Row>();
+				final ITransaction[] transactions = new ITransaction[1];
+				if (!queryService.isClosed()) {
+					try {
+						new ProgressMonitorDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell()).run(true, true, new IRunnableWithProgress() {
+							@Override
+							public void run(IProgressMonitor monitor) throws InvocationTargetException,
+									InterruptedException {
+								transactions[0] = queryService.createTransaction();
+								int count = transactions[0].getLockCount();
+								monitor.beginTask("Downloading statistics...", count);
+								int index = 0;
+								int interval = 100;
+								while (index < count) {
+									ILock[] tmp = transactions[0].getLocks(index, Math.min(index + interval, count));
+									monitor.worked(tmp.length);
+									locks.addAll(Arrays.asList(StatisticsDialog.convert(index, tmp)));
+									index += interval;
+									if (monitor.isCanceled())
+										break;
+								}
+								monitor.done();
+							}
+						});
+					} catch (InvocationTargetException e) {
+						e.printStackTrace();
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+				if (locks.size() == 0)
 					MessageDialog.openError(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), "Can't retrieve process information", "Process need to be running to get lock information.");
 				else {
-					StatisticsDialog dialog = new StatisticsDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), locks);
+					StatisticsDialog dialog = new StatisticsDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), locks.toArray(new StatisticsDialog.Row[0]), transactions[0]);
 					dialog.open();
 				}
 			}
