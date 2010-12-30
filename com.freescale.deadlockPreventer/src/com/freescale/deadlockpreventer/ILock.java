@@ -1,5 +1,7 @@
 package com.freescale.deadlockpreventer;
 
+import java.util.ArrayList;
+
 public interface ILock {
 
 	String getID();
@@ -9,4 +11,6 @@ public interface ILock {
 	IContext[] getPrecedents();
 	
 	IContext[] getFollowers();
+	
+	ArrayList<String> serialize();
 }

@@ -1,13 +1,21 @@
 package com.freescale.deadlockpreventer;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.LinkedList;
 
 import com.freescale.deadlockpreventer.NetworkServer.Session;
+import com.freescale.deadlockpreventer.QueryService.ITransaction;
 import com.freescale.deadlockpreventer.ReportService.IListener;
 
+@SuppressWarnings("unused")
 public class ConsoleNetworkServer {
 	
 	static QueryService queryService;
@@ -44,17 +52,17 @@ public class ConsoleNetworkServer {
 					String[] conflictPrecedentStack, String message) {
 				System.out.println(message);
 				System.out.println("(C)ontinue, (E)xception, (A)bort?");
-				try {
-					int c = System.in.read();
-					if (Character.toLowerCase((char)c) == 'c')
-						return IConflictListener.CONTINUE;
-					if (Character.toLowerCase((char)c) == 'e')
-						return IConflictListener.EXCEPTION;
-					if (Character.toLowerCase((char)c) == 'a')
-						return IConflictListener.ABORT;
-				} catch (IOException e) {
-					e.printStackTrace();
+				if (alwaysContinue) {
+					System.out.println(" -> always (C)ontinue");
+					return IConflictListener.CONTINUE;
 				}
+				char c = readLine().charAt(0);
+				if (Character.toLowerCase(c) == 'c')
+					return IConflictListener.CONTINUE;
+				if (Character.toLowerCase(c) == 'e')
+					return IConflictListener.EXCEPTION;
+				if (Character.toLowerCase(c) == 'a')
+					return IConflictListener.ABORT;
 				return IConflictListener.CONTINUE;
 			} 
 			
@@ -62,24 +70,25 @@ public class ConsoleNetworkServer {
 		networkServer.registerSevice(reportKey, reportService);
 		
 		Thread thread = networkServer.start(port);
+		startReadLine();
 		
 		System.out.println("Server started on port: " + port);
 		System.out.println("services:");
 		System.out.println("  report: " + reportKey);
 		System.out.println("  query: " + queryKey);
 		System.out.println("Type 'help' for a list of commands.");
-		BufferedReader stream = new BufferedReader(new InputStreamReader(System.in));
-		try {
-			String line = stream.readLine();
-			while (line != null) {
+		String line = readLine();
+		while (line != null) {
+			try {
 				if (processLine(line) != 0)
 					break;
-				line = stream.readLine();
+			} catch (Throwable e) {
+				e.printStackTrace();
 			}
-		} catch (IOException e1) {
-			e1.printStackTrace();
+			line = readLine();
 		}
 		networkServer.stop();
+		exiting = true;
 		if (thread != null) {
 			try {
 				thread.join();
@@ -89,49 +98,233 @@ public class ConsoleNetworkServer {
 		}
 	}
 
+	static LinkedList<Object> waitingList = new LinkedList<Object>();
+	static volatile boolean exiting = false;
+	static LinkedList<String> readLines = new LinkedList<String>();
+	
+	private static String readLine() {
+		synchronized(readLines) {
+			if (!readLines.isEmpty())
+				return readLines.removeFirst();
+		}
+
+		Object wait = new Object();
+		synchronized(waitingList) {
+			waitingList.addFirst(wait);
+		}
+		try {
+			synchronized(wait) {
+				wait.wait();
+			}
+		} catch (InterruptedException e) {
+		}
+		synchronized(readLines) {
+			return readLines.removeFirst();
+		}
+	}
+	
+	private static void startReadLine() {
+		Thread thread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				String line = null;
+				BufferedReader stream = new BufferedReader(new InputStreamReader(System.in));
+				try {
+					while(!exiting) {
+						line = stream.readLine();
+						synchronized(readLines) {
+							readLines.add(line);
+						}
+						Object wait = null;
+						synchronized(waitingList) {
+							if (!waitingList.isEmpty())
+								wait = waitingList.removeFirst();
+						}
+						if (wait != null) {
+							synchronized(wait) {
+								wait.notify();
+							}
+						}
+					}
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
+			}
+		});
+		thread.start();
+	}
+
 	private static int processLine(String line) {
-		if (line.equals("exit"))
-			return -1;
-		else
-		if (line.equals("help")) {
-			System.out.println("exit              (exit the process)");
-			System.out.println("dump              (dump all the locks from the connected process)");
-		}
-		else
-		if (line.equals("dump")) {
-			dumpLocks();
-		}
-		else
+		String[] lines = line.split(" ");
+		try {
+			Method method = ConsoleNetworkServer.class.getDeclaredMethod("command_" + lines[0], String[].class);
+			Object result = method.invoke(null, new Object[] {lines});
+			if (result instanceof Integer)
+				return ((Integer) result).intValue();
+		} catch (NoSuchMethodException e) {
 			System.out.println("Command not recognized: " + line);
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
+		} catch (IllegalArgumentException e) {
+			e.printStackTrace();
+		} catch (InvocationTargetException e) {
+			System.out.println("Command not recognized: " + line);
+		}
 		return 0;
 	}
 
-	private static void dumpLocks() {
-		while (!queryService.isConnected()) {
-			System.out.println("Waiting for connection ('c' for cancel)...");
-			try {
-				if (System.in.available() > 0) {
-					int c = System.in.read();
-					if (Character.toLowerCase(c) == 'c')
-						return;
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
+	private static int command_exit(String[] args) {
+		return -1;
+	}
+
+	static boolean alwaysContinue = true;
+	
+	private static int command_alwaysContinue(String[] args) {
+		alwaysContinue = !alwaysContinue;
+		System.out.println(Boolean.toString(alwaysContinue));
+		return 0;
+	}
+
+	private static int command_help(String[] args) {
+		Method[] methods = ConsoleNetworkServer.class.getDeclaredMethods();
+		for (Method method : methods) {
+			if (method.getName().startsWith("command_")) {
+				System.out.println(method.getName().split("_")[1]);
 			}
+		}
+		return 0;
+	}
+
+	static ITransaction transaction = null;
+
+	private static int command_getLockCount(String[] args) {
+		if (!waitForConnection())
+			return 0;
+		
+		if (transaction != null)
+			transaction.close();
+		transaction = queryService.createTransaction();
+		System.out.println(transaction.getLockCount() + " locks");
+		return 0;
+	}
+
+	private static int command_getLock(String[] args) {
+		if (!waitForConnection())
+			return 0;
+
+		if (transaction == null)
+			transaction = queryService.createTransaction();
+		int index = Integer.parseInt(args[1]);
+		ILock lock = transaction.getLockSummary(index);
+		if (lock == null)
+			System.out.println("lock index(" + index + ") not found");
+		else {
+			PrintWriter writer = new PrintWriter(System.out);
+			Analyzer.dumpLockInformation(new ILock[] {lock}, writer);
+			writer.flush();
+		}
+		return 0;
+	}
+
+	private static int command_getDetails(String[] args) {
+		if (!waitForConnection())
+			return 0;
+
+		if (transaction == null)
+			transaction = queryService.createTransaction();
+		int index = Integer.parseInt(args[1]);
+		int end = index + 1;
+		if (args.length > 2)
+			end = Integer.parseInt(args[2]);
+		ILock[] locks = transaction.getLocks(index, end);
+		if (locks == null)
+			System.out.println("lock index(" + index + ") not found");
+		else {
+			PrintWriter writer = new PrintWriter(System.out);
+			Analyzer.dumpLockInformation(locks, writer);
+			writer.flush();
+		}
+		return 0;
+	}
+
+	static int DEFAULT_PACKET_SIZE = 100;
+
+	private static int command_getAll(String[] args) {
+		if (!waitForConnection())
+			return 0;
+
+		if (transaction == null)
+			transaction = queryService.createTransaction();
+		int max = transaction.getLockCount();
+		int index = 0;
+		System.out.println("Listing all locks: ('q' for cancel)...");
+		while (index < max) {
+			ILock[] locks = transaction.getLocks(index, Math.min(index + DEFAULT_PACKET_SIZE, max));
+			if (locks == null)
+				System.out.println("lock index(" + index + ") not found");
+			else {
+				PrintWriter writer = new PrintWriter(System.out);
+				Analyzer.dumpLockInformation(locks, writer);
+				writer.flush();
+			}
+			index += DEFAULT_PACKET_SIZE;
+		}
+		System.out.println("done.");
+		return 0;
+	}
+
+	private static int command_writeAll(String[] args) {
+		if (!waitForConnection())
+			return 0;
+
+		if (transaction == null)
+			transaction = queryService.createTransaction();
+		int max = transaction.getLockCount();
+		int index = 0;
+		System.out.println("Writing all locks...");
+		
+		String file = args[1];
+
+		long time = System.currentTimeMillis();
+		File outputFile = new File(file);
+		if (!outputFile.getParentFile().exists())
+			outputFile.getParentFile().mkdirs();
+		try {
+			if (!outputFile.exists())
+				outputFile.createNewFile();
+			FileWriter writer = new FileWriter(outputFile);
+
+			while (index < max) {
+				System.out.println("fetching index " + index + " ...");
+				ILock[] locks = transaction.getLocks(index, Math.min(index + DEFAULT_PACKET_SIZE, max));
+				if (locks == null)
+					System.out.println("lock index(" + index + ") not found");
+				else {
+					Analyzer.dumpLockInformation(locks, writer);
+				}
+				index += DEFAULT_PACKET_SIZE;
+			}
+			writer.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		System.out.println("done in " + ((System.currentTimeMillis() - time) / 1000.0) + " seconds.");
+		return 0;
+	}
+
+	private static boolean waitForConnection() {
+		while (!queryService.isConnected()) {
+			System.out.println("Waiting for connection...");
 			try {
 				Thread.sleep(500);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
-		
 		if (queryService.isClosed()) {
 			System.out.println("Connection is closed");
-			return;
+			return false;
 		}
-		ILock[] locks = queryService.getLocks();
-		System.out.println("Received " + locks.length + " locks:");
-		Analyzer.dumpLockInformation(locks, new PrintWriter(System.out));
+		return true;
 	}
-
 }

@@ -4,10 +4,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.LinkedList;
+import java.util.Map.Entry;
 
 import com.freescale.deadlockpreventer.Analyzer.AcquisitionOrder;
-import com.freescale.deadlockpreventer.Analyzer.CacheEntry;
 import com.freescale.deadlockpreventer.Analyzer.LockInfo;
 
 public class Statistics
@@ -15,39 +16,110 @@ public class Statistics
 	HashMap<String, LockImpl> locks = new HashMap<String, LockImpl>();
 	
 	public Statistics() {
+		this(false);
+	}
+	
+	public Statistics(boolean summary) {
 		
 		synchronized(Analyzer.instance().globalOrder) {
-			for (ArrayList<CacheEntry<AcquisitionOrder>> list : Analyzer.instance().globalOrder.cache.values()) {
-				for (CacheEntry<AcquisitionOrder> entry : list) {
-					LockImpl lock = new LockImpl(entry.object);
+			for (ArrayList<ObjectCache.Entry<AcquisitionOrder>> list : Analyzer.instance().globalOrder.cache.values()) {
+				for (ObjectCache.Entry<AcquisitionOrder> entry : list) {
+					IncompleteLockImpl lock = new IncompleteLockImpl(entry.object);
+					lock.order = entry.value;
 					locks.put(lock.id, lock);
 				}
 			}
-			for (ArrayList<CacheEntry<AcquisitionOrder>> list : Analyzer.instance().globalOrder.cache.values()) {
-				for (CacheEntry<AcquisitionOrder> entry : list) {
-					String id = Analyzer.safeToString(entry.object);
-					LockImpl lock = locks.get(id);
-					for (LockInfo info : entry.value.order) {
-						String precedentId = Analyzer.safeToString(info.getLock());
-						LockImpl precedent = locks.get(precedentId);
-						if (precedent == null) {
-							precedent = new LockImpl(info.getLock());
-							locks.put(precedentId, precedent);
-						}
-						precedent.recordStackTrace(info.stackTrace);
-						if (!lock.hasPrecedent(precedentId)) {
-							ContextImpl precedentContext = new ContextImpl(precedent, info);
-							lock.addPrecedent(precedentContext);
-						}
-
-						if (!precedent.hasFollower(id)) {
-							ContextImpl followerContext = new ContextImpl(lock, info);
-							precedent.addFollower(followerContext);
+			if (!summary) {
+				for (ArrayList<ObjectCache.Entry<AcquisitionOrder>> list : Analyzer.instance().globalOrder.cache.values()) {
+					for (ObjectCache.Entry<AcquisitionOrder> entry : list) {
+						String id = Analyzer.safeToString(entry.object);
+						LockImpl lock = locks.get(id);
+						for (LockInfo info : entry.value.order) {
+							String precedentId = getLockID(info);
+							LockImpl precedent = locks.get(precedentId);
+							if (precedent == null) {
+								precedent = new LockImpl(info.getLock());
+								locks.put(precedentId, precedent);
+							}
+							precedent.recordStackTrace(info.stackTrace);
+							if (!lock.hasPrecedent(precedentId)) {
+								ContextImpl precedentContext = new ContextImpl(precedent, info);
+								lock.addPrecedent(precedentContext);
+							}
+	
+							if (!precedent.hasFollower(id)) {
+								ContextImpl followerContext;
+								if (info.contextsPerThread.isEmpty())
+									followerContext = new ContextImpl(lock, info);
+								else {
+									Entry<String, StackTraceElement[]> context = info.contextsPerThread.entrySet().iterator().next();
+									followerContext = new ContextImpl(lock, context.getKey(), context.getValue());
+								}
+								precedent.addFollower(followerContext);
+							}
 						}
 					}
 				}
 			}
 		}
+	}
+
+	public ILock[] getDetails(ILock[] summaryLocks) {
+		Hashtable<String, Integer> table = new Hashtable<String, Integer>();
+		for (int i = 0; i < summaryLocks.length; i++)
+			table.put(summaryLocks[i].getID(), new Integer(i));
+		
+		LockImpl[] result = new LockImpl[summaryLocks.length];
+		synchronized(Analyzer.instance().globalOrder) {
+			for (int i = 0; i < summaryLocks.length; i++) {
+				IncompleteLockImpl incompleteLock = (IncompleteLockImpl)summaryLocks[i];
+				result[i] = new LockImpl();
+				result[i].id = incompleteLock.id;
+				
+				for (LockInfo info : incompleteLock.order.order) {
+					String precedentId = getLockID(info);
+					LockImpl precedent = locks.get(precedentId);
+					if (precedent == null) {
+						precedent = new LockImpl(info.getLock());
+						locks.put(precedentId, precedent);
+					}
+					if (!result[i].hasPrecedent(precedentId)) {
+						ContextImpl precedentContext = new ContextImpl(precedent, info);
+						result[i].addPrecedent(precedentContext);
+					}
+				}
+			}
+
+			// look for the lock entry as a precedent to register its stack trace
+			for (LockImpl lock : locks.values()) {
+				IncompleteLockImpl incompleteLock = (IncompleteLockImpl)lock;
+				for (LockInfo info : incompleteLock.order.order) {
+					String precedentId = getLockID(info);
+					Integer index = table.get(precedentId);
+					if (index != null) {
+						int i = index.intValue();
+						result[i].recordStackTrace(info.stackTrace);
+						if (!result[i].hasFollower(lock.getID())) {
+							ContextImpl followerContext;
+							if (info.contextsPerThread.isEmpty())
+								followerContext = new ContextImpl(lock, info);
+							else {
+								Entry<String, StackTraceElement[]> context = info.contextsPerThread.entrySet().iterator().next();
+								followerContext = new ContextImpl(lock, context.getKey(), context.getValue());
+							}
+							result[i].addFollower(followerContext);
+						}
+					}
+				}
+			}
+		}
+		return result;
+	}
+	
+	private String getLockID(LockInfo info) {
+		if (info.lockID == null)
+			info.lockID = Analyzer.safeToString(info.getLock());
+		return info.lockID;
 	}
 
 	public Statistics(String[] strings) {
@@ -74,6 +146,15 @@ public class Statistics
 		initialize(stack);
 	}
 
+	public Statistics(ILock lock) {
+		locks.put(lock.getID(), (LockImpl) lock);
+	}
+
+	public Statistics(ILock[] locks) {
+		for (ILock lock : locks)
+			this.locks.put(lock.getID(), (LockImpl) lock);
+	}
+
 	public ArrayList<String> serialize() {
 		ArrayList<String> result = new ArrayList<String>();
 		
@@ -91,6 +172,12 @@ public class Statistics
 		return locks.values().toArray(new ILock[0]);
 	}
 
+	public ILock lock() {
+		if (locks.values().isEmpty())
+			return null;
+		return locks.values().iterator().next();
+	}
+
 	static String[] convert(StackTraceElement[] st) {
 		ArrayList<String> result = new ArrayList<String>();
 		// always skip the first (in java.lang.Thread.getStackTrace), then the one in the analyzer
@@ -104,6 +191,19 @@ public class Statistics
 	}
 }
 
+class IncompleteLockImpl extends LockImpl
+{
+	public IncompleteLockImpl(Object object) {
+		super(object);
+		key = ObjectCache.getKey(object);
+		this.object = object;
+	}
+	
+	String key;  
+	Object object;
+	AcquisitionOrder order;
+}
+
 class LockImpl implements ILock
 {
 	String id;
@@ -113,6 +213,10 @@ class LockImpl implements ILock
 	
 	public LockImpl(Object object) {
 		id = Analyzer.safeToString(object);
+	}
+
+	public LockImpl() {
+		id = null;
 	}
 	
 	public String toString() {
@@ -141,14 +245,14 @@ class LockImpl implements ILock
 		// 3. un serialize each precedent
 		while (count-- > 0) {
 			ContextImpl context = new ContextImpl(stack);
-			precedents.put(context.getLock().getID(), context);
+			precedents.put(context.pendingLockID, context);
 		}
 		// 4. serialize the followers count
 		count = Integer.parseInt(stack.removeFirst());
 		// 5. serialize each follower
 		while (count-- > 0) {
 			ContextImpl context = new ContextImpl(stack);
-			followers.put(context.getLock().getID(), context);
+			followers.put(context.pendingLockID, context);
 		}
 		// 6. un-serialize the stack trace count
 		count = Integer.parseInt(stack.removeFirst());
@@ -227,6 +331,13 @@ class LockImpl implements ILock
 	public String[] getStackTrace() {
 		return stackTrace;
 	}
+
+	@Override
+	public ArrayList<String> serialize() {
+		ArrayList<String> result = new ArrayList<String>();
+		serialize(result);
+		return result;
+	}
 	
 }
 
@@ -239,8 +350,14 @@ class ContextImpl implements IContext
 	
 	public ContextImpl(LockImpl lock, LockInfo info) {
 		this.lock = lock;
-		threadId = Long.toHexString(info.threadId);
+		threadId = info.threadId;
 		stackTrace = Statistics.convert(info.stackTrace);
+	}
+
+	public ContextImpl(LockImpl lock, String threadId, StackTraceElement[] stackTrace) {
+		this.lock = lock;
+		this.threadId = threadId;
+		this.stackTrace = Statistics.convert(stackTrace);
 	}
 
 	public void completeInitialization(HashMap<String, LockImpl> locks) {
@@ -284,6 +401,11 @@ class ContextImpl implements IContext
 
 	@Override
 	public ILock getLock() {
+		if (lock == null) {
+			LockImpl tmp = new LockImpl();
+			tmp.id = pendingLockID;
+			return tmp;
+		}
 		return lock;
 	}
 }

@@ -17,7 +17,9 @@ public class NetworkUtil {
 		str = readString(input);
 		int totalBytes = Integer.parseInt(str);
 		byte[] bytes = new byte[totalBytes];
-		input.read(bytes);
+		int bytesRead = input.read(bytes);
+		while (bytesRead < bytes.length)
+			bytesRead += input.read(bytes, bytesRead, bytes.length - bytesRead);
 		ByteArrayInputStream byteInput = new ByteArrayInputStream(bytes);
 		ArrayList<String> array = new ArrayList<String>();
 		for (int i = 0; i < count; i++)

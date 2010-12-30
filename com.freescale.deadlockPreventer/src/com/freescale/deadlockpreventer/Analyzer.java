@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map.Entry;
 
 public class Analyzer {
@@ -189,17 +188,21 @@ public class Analyzer {
 	public static void dumpLockInformation(ILock[] locks, Writer writer) {
 		try {
 			for (ILock lock : locks) {
-				writer.write("lock: " + lock.getID() + ", precedents(" + lock.getPrecedents().length + " followers(" + lock.getFollowers().length + ")\n");
+				writer.write("lock: " + lock.getID() + ", precedents(" + lock.getPrecedents().length + ") followers(" + lock.getFollowers().length + ")\n");
 				writeStack(writer, "  ", lock.getStackTrace());
-				writer.write("  precedents:\n");
-				for (IContext context : lock.getPrecedents()) {
-					writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")");
-					writeStack(writer, "    ", context.getStackTrace());
+				if (lock.getPrecedents().length > 0) {
+					writer.write("  precedents:\n");
+					for (IContext context : lock.getPrecedents()) {
+						writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")\n");
+						writeStack(writer, "     ", context.getStackTrace());
+					}
 				}
-				writer.write("  followers:\n");
-				for (IContext context : lock.getFollowers()) {
-					writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")");
-					writeStack(writer, "    ", context.getStackTrace());
+				if (lock.getFollowers().length > 0) {
+					writer.write("  followers:\n");
+					for (IContext context : lock.getFollowers()) {
+						writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")\n");
+						writeStack(writer, "     ", context.getStackTrace());
+					}
 				}
 			}
 		} catch (IOException e) {
@@ -234,17 +237,20 @@ public class Analyzer {
 	static class LockInfo {
 		private Object lock;
 		String lockKey;
+		// is not normally set, except from statistic gathering
+		String lockID;
 		
 		public void setLock(Object lock) {
 			this.lock = lock;
 			lockKey = ObjectCache.getKey(lock);
+			lockID = null;
 		}
 		
 		public Object getLock() {
 			return lock;
 		}
 		
-		long threadId = -1;
+		String threadId = null;
 		int count = 0;
 		StackTraceElement[] stackTrace;
 		HashMap<String, StackTraceElement[]> contextsPerThread = new HashMap<String, StackTraceElement[]>();
@@ -269,6 +275,7 @@ public class Analyzer {
 		public LockInfo copy() {
 			LockInfo info = new LockInfo();
 			info.lock = lock;
+			info.threadId = threadId;
 			info.lockKey = lockKey;
 			info.stackTrace = stackTrace;
 			return info;
@@ -372,7 +379,7 @@ public class Analyzer {
 	}
 
 	// last item is the latest acquired
-	static class AcquisitionOrder {
+	static public class AcquisitionOrder {
 		ArrayList<LockInfo> order = new ArrayList<LockInfo>();
 
 		public LockInfo find(LockInfo precedent) {
@@ -398,80 +405,6 @@ public class Analyzer {
 			return "(Custom) " + safeToString(lock);
 		}
 		
-	}
-	
-	static class CacheEntry<E> {
-		public CacheEntry(Object obj, E value2) {
-			object = obj;
-			value = value2;
-		}
-		Object object;
-		E value;
-	}
-	
-	// We use a custom object cache because we can't use a simple HashMap<Object>, since the object.hashCode() 
-	// can be overridden by clients and cause deadlocks. 
-	static class ObjectCache<T> {
-		HashMap<String, ArrayList<CacheEntry<T>>> cache = new HashMap<String, ArrayList<CacheEntry<T>>>();
-		
-		public T get(Object obj) {
-			return getFromKey(getKey(obj), obj);
-		}
-		
-		public T getFromKey(Object key, Object obj) {
-			ArrayList<CacheEntry<T>> cacheLine = cache.get(key);
-			if (cacheLine != null) {
-				ListIterator<CacheEntry<T>> iterator = cacheLine.listIterator(cacheLine.size());
-				while (iterator.hasPrevious()) {
-					CacheEntry<T> entry = iterator.previous();
-					if (entry.object == obj)
-						return entry.value;
-				}
-			}
-			return null;
-		}
-		
-		public T getOrCreate(Object obj, Class<T> cls) {
-			String key = getKey(obj);
-			ArrayList<CacheEntry<T>> cacheLine = cache.get(key);
-			if (cacheLine != null) {
-				ListIterator<CacheEntry<T>> iterator = cacheLine.listIterator(cacheLine.size());
-				while (iterator.hasPrevious()) {
-					CacheEntry<T> entry = iterator.previous();
-					if (entry.object == obj)
-						return entry.value;
-				}
-			} else {
-				cacheLine = new ArrayList<CacheEntry<T>>();
-				cache.put(key, cacheLine);
-			}
-			T value;
-			try {
-				value = cls.newInstance();
-			} catch (Throwable e) {
-				e.printStackTrace();
-				return null;
-			}
-			cacheLine.add(new CacheEntry<T>(obj, value));
-			return value;
-		}
-
-		public static String getKey(Object obj) {
-			Class<?> cls = obj.getClass();
-			if (cls.equals(CustomLock.class))
-				cls = ((CustomLock) obj).lock.getClass();
-			return cls.getSimpleName();
-		}
-
-		public void put(Object obj, T value) {
-			String key = getKey(obj);
-			ArrayList<CacheEntry<T>> cacheLine = cache.get(key);
-			if (cacheLine == null) {
-				cacheLine = new ArrayList<CacheEntry<T>>();
-				cache.put(key, cacheLine);
-			}
-			cacheLine.add(new CacheEntry<T>(obj, value));
-		}
 	}
 	
 	ObjectCache<CustomLock> customLocks = new ObjectCache<CustomLock>();
@@ -587,7 +520,7 @@ public class Analyzer {
 				// registering lock
 				info.setLock(lock);
 				info.count = count;
-				info.threadId = currentThread.getId();
+				info.threadId = getThreadID(currentThread);
 				info.stackTrace = currentThread.getStackTrace();
 				localOrder.order.add(info);
 		
@@ -650,11 +583,6 @@ public class Analyzer {
 				// record the precedence
 				synchronized(globalOrder) {
 					AcquisitionOrder order = globalOrder.getOrCreate(lock, AcquisitionOrder.class);
-					if (order.order.isEmpty()) {
-						order = new AcquisitionOrder();
-						globalOrder.put(lock, order);
-						assert(localOrder.order.size() == 1);
-					}
 					ArrayList<LockInfo> guardList = new ArrayList<LockInfo>();
 					for (int localIndex = 0; localIndex  < localOrder.order.size() - 1; localIndex++) {
 						LockInfo precedent = localOrder.order.get(localIndex);
@@ -707,7 +635,11 @@ public class Analyzer {
 		Thread thread = Thread.currentThread();
 		return Long.toString(thread.getId()) + " (" + thread.getName() + ")";
 	}
-	
+
+	private static String getThreadID(Thread thread) {
+		return Long.toString(thread.getId()) + " (" + thread.getName() + ")";
+	}
+
 	static class ConflictReport {
 		String threadID;
 		String conflictThreadID;
@@ -953,7 +885,7 @@ public class Analyzer {
 												Thread currentThread = Thread.currentThread();
 												currentLock.lock = lock;
 												currentLock.count = 1;
-												currentLock.threadId = currentThread.getId();
+												currentLock.threadId = getThreadID(currentThread);
 												currentLock.stackTrace = currentThread.getStackTrace();
 	
 												boolean shouldThrow = reportConflict(TYPE_ERROR_SIGNAL, currentThreadID, currentThreadID, currentLock, commonPredecent, commonPredecent.getAquiringContext(), precedent);
