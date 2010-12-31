@@ -177,7 +177,7 @@ public class ConsoleNetworkServer {
 		return -1;
 	}
 
-	static boolean alwaysContinue = true;
+	static boolean alwaysContinue = false;
 	
 	private static int command_alwaysContinue(String[] args) {
 		alwaysContinue = !alwaysContinue;

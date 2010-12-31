@@ -33,6 +33,7 @@ public class Analyzer {
 	public static final String PROPERTY_REPORT_WARNINGS = "com.freescale.deadlockpreventer.reportWarnings";
 	public static final String PROPERTY_ABORT_ON_ERRORS = "com.freescale.deadlockpreventer.abortOnErrors";
 	public static final String PROPERTY_LOG_TO_FILE = "com.freescale.deadlockpreventer.logToFile";
+	public static final String PROPERTY_LOG_TO_STREAM = "com.freescale.deadlockpreventer.logToStream";
 	public static final String PROPERTY_QUERY_SERVICE = "com.freescale.deadlockpreventer.queryService";
 	public static final String PROPERTY_REPORT_SERVICE = "com.freescale.deadlockpreventer.reportService";
 	public static final String PROPERTY_DUMP_LOCK_INFO = "com.freescale.deadlockpreventer.dumpLocksToFile";
@@ -122,6 +123,10 @@ public class Analyzer {
 		value = System.getProperty(PROPERTY_LOG_TO_FILE);
 		if (value != null)
 			listener = new FileListener(value);
+		
+		value = System.getProperty(PROPERTY_LOG_TO_STREAM);
+		if (value != null)
+			listener = new StdListener(value.equals("out")? System.out:System.err);
 		
 		value = System.getProperty(PROPERTY_DUMP_LOCK_INFO);
 		if (value != null)
