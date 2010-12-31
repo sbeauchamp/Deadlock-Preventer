@@ -18,6 +18,7 @@ import org.eclipse.jface.dialogs.IDialogConstants;
 import org.eclipse.jface.viewers.CellLabelProvider;
 import org.eclipse.jface.viewers.ColumnViewerToolTipSupport;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
+import org.eclipse.jface.viewers.IStructuredSelection;
 import org.eclipse.jface.viewers.ITreeContentProvider;
 import org.eclipse.jface.viewers.TableViewer;
 import org.eclipse.jface.viewers.TableViewerColumn;
@@ -26,6 +27,9 @@ import org.eclipse.jface.viewers.ViewerCell;
 import org.eclipse.jface.viewers.ViewerComparator;
 import org.eclipse.jface.window.ToolTip;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.dnd.Clipboard;
+import org.eclipse.swt.dnd.TextTransfer;
+import org.eclipse.swt.dnd.Transfer;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.graphics.Point;
@@ -34,9 +38,12 @@ import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
+import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.TableColumn;
+import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.swt.IFocusService;
 
 import com.freescale.deadlockpreventer.Analyzer;
 import com.freescale.deadlockpreventer.ILock;
@@ -71,11 +78,19 @@ public class StatisticsDialog extends Dialog {
 	TableViewer viewer;
 	TableViewerComparator comparator;
 	ITransaction transaction;
+	static StatisticsDialog sInstance = null;
 
 	protected StatisticsDialog(Shell parentShell, Row[] locks, ITransaction transaction) {
 		super(parentShell);
 		this.locks = locks;
 		this.transaction = transaction;
+		sInstance = this;
+	}
+
+	@Override
+	protected void configureShell(Shell newShell) {
+		super.configureShell(newShell);
+		newShell.setText("Synchronization Primitives");
 	}
 
 	protected int getShellStyle() {
@@ -99,6 +114,7 @@ public class StatisticsDialog extends Dialog {
 	@Override
 	public boolean close() {
 		transaction.close();
+		sInstance = null;
 		return super.close();
 	}
 
@@ -115,6 +131,10 @@ public class StatisticsDialog extends Dialog {
         ColumnViewerToolTipSupport.enableFor(viewer, ToolTip.NO_RECREATE);
 		viewer.setInput(locks);
 
+		IFocusService service = (IFocusService) PlatformUI.getWorkbench().getService(IFocusService.class);
+
+		service.addFocusTracker(viewer.getTable(), StatisticsDialog.class.getPackage().getName() + ".table");
+		
 		viewer.setLabelProvider(new CellLabelProvider() {
 			@Override
 			public void update(ViewerCell cell) {
@@ -329,5 +349,24 @@ public class StatisticsDialog extends Dialog {
 				return true;
 			return false;
 		}
+	}
+
+	public static void copyCurrentRow() {
+		if (sInstance != null) {
+			sInstance.copySelection();
+		}
+	}
+
+	private void copySelection() {
+		CharArrayWriter writer = new CharArrayWriter(); 
+   		for (Object selectedRow : ((IStructuredSelection) viewer.getSelection()).toList()) {
+   			Row row = (Row) selectedRow;
+   			ILock[] locks = transaction.getLocks(row.index, row.index + 1);
+   			Analyzer.dumpLockInformation(locks, writer);
+		}
+		Clipboard cb = new Clipboard(Display.getDefault());
+		TextTransfer textTransfer = TextTransfer.getInstance();
+		cb.setContents(new Object[] { writer.toString().replace('\n', System.getProperty("line.separator").charAt(0)) },
+				new Transfer[] { textTransfer });
 	}
 }
