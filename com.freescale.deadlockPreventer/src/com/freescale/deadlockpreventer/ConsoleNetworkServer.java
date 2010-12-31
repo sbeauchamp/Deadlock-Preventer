@@ -282,7 +282,7 @@ public class ConsoleNetworkServer {
 		int max = transaction.getLockCount();
 		int index = 0;
 		System.out.println("Writing all locks...");
-		
+
 		String file = args[1];
 
 		long time = System.currentTimeMillis();

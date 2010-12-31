@@ -11,6 +11,7 @@
 package com.freescale.deadlockpreventer.agent;
 
 import java.io.CharArrayWriter;
+import java.io.IOException;
 
 import org.eclipse.jface.dialogs.Dialog;
 import org.eclipse.jface.dialogs.IDialogConstants;
@@ -105,7 +106,7 @@ public class StatisticsDialog extends Dialog {
 	protected Control createDialogArea(Composite parent) {
 		parent.setLayout(new GridLayout(2, false));
 
-		viewer = new TableViewer(parent, SWT.BORDER);
+		viewer = new TableViewer(parent, SWT.BORDER | SWT.MULTI | SWT.FULL_SELECTION);
 		GridData layoutData = new GridData(SWT.FILL, SWT.FILL, true, true);
 		layoutData.horizontalSpan = 2;
 		viewer.getTable().setLayoutData(
@@ -164,6 +165,12 @@ public class StatisticsDialog extends Dialog {
 		layoutData = new GridData(SWT.BEGINNING, SWT.TOP, false, false);
 		layoutData.widthHint = 80;
 		button.setLayoutData(layoutData);
+		button.addSelectionListener( new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				StatisticsUtil.export(transaction);			
+			}
+		});
 		
 		Label label = new Label(parent, 0);
 		label.setText("Total locks: " + locks.length);
@@ -207,7 +214,12 @@ public class StatisticsDialog extends Dialog {
 				Row row = (Row) element;
         		ILock[] locks = transaction.getLocks(row.index, row.index + 1);
         		CharArrayWriter writer = new CharArrayWriter(); 
-        		Analyzer.dumpLockInformation(locks, writer);
+        		try {
+					for (String stack : locks[0].getStackTrace()) {
+						writer.write(stack + "\n");
+					}
+				} catch (IOException e) {
+				}
         		return writer.toString();
             }
 		});
