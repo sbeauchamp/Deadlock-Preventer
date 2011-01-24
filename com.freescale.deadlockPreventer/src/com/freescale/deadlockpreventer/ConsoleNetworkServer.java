@@ -215,7 +215,7 @@ public class ConsoleNetworkServer {
 		if (transaction == null)
 			transaction = queryService.createTransaction();
 		int index = Integer.parseInt(args[1]);
-		ILock lock = transaction.getLockSummary(index);
+		ILock lock = transaction.getLocks(index, index + 1)[0];
 		if (lock == null)
 			System.out.println("lock index(" + index + ") not found");
 		else {

@@ -13,4 +13,6 @@ public interface ILock {
 	IContext[] getFollowers();
 	
 	ArrayList<String> serialize();
+
+	void serialize(ArrayList<String> result);
 }

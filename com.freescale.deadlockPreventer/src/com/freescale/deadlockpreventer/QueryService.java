@@ -16,6 +16,7 @@ import java.io.PrintStream;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 
 import com.freescale.deadlockpreventer.NetworkServer.Session;
 
@@ -28,7 +29,6 @@ public class QueryService implements NetworkServer.IService {
 	private static String DUMP_LOCKS = "dump";
 	private static String INIT_TRANSACTION = "init_transaction";
 	private static String GET_LOCK = "get_lock";
-	private static String GET_LOCK_DETAIL = "get_detail";
 	private static String CLOSE_TRANSACTION = "close_transaction";
 	
 	public QueryService() {}
@@ -41,7 +41,7 @@ public class QueryService implements NetworkServer.IService {
 		class Transaction {
 			public Transaction(int i) {
 				id = Integer.toString(i);
-				stats = new Statistics(true);
+				stats = new Statistics();
 				locks = stats.locks();
 			}
 			String id;
@@ -84,7 +84,11 @@ public class QueryService implements NetworkServer.IService {
 				if (strs.get(0).equals(INIT_TRANSACTION)) {
 					Transaction transaction = new Transaction(++lastTrasactionID);
 					transactions.add(transaction);
-					return new Message(new String[] {transaction.id, Integer.toString(transaction.locks.length)});
+					ArrayList<String> response = new ArrayList<String>();
+					response.add(transaction.id);
+					response.add(Integer.toString(transaction.locks.length));
+					response.addAll(transaction.stats.serializeStringTable());
+					return new Message(response);
 				}
 				if (strs.get(0).equals(CLOSE_TRANSACTION)) {
 					String transactionID = strs.get(1);
@@ -102,24 +106,13 @@ public class QueryService implements NetworkServer.IService {
 					int index = Integer.parseInt(strs.get(2));
 					if (index < 0 || index >= transaction.locks.length)
 						return null;
-					ILock lock = transaction.locks[index];
-					return new Message(new Statistics(lock).serialize());
-				}
-				if (strs.get(0).equals(GET_LOCK_DETAIL)) {
-					String transactionID = strs.get(1);
-					Transaction transaction = find(transactionID);
-					if (transaction == null)
-						return null;
-					int index = Integer.parseInt(strs.get(2));
-					if (index < 0 || index >= transaction.locks.length)
-						return null;
 					int end = Integer.parseInt(strs.get(3));
 					if (end < 0 || end > transaction.locks.length || end < index)
 						return null;
-					ILock[] locks = transaction.stats.getDetails(Arrays.copyOfRange(transaction.locks, index, end));
+					ILock[] locks = Arrays.copyOfRange(transaction.locks, index, end);
 					if (locks == null)
 						return null;
-					return new Message(new Statistics(locks).serialize());
+					return new Message(Statistics.serializeLocks(locks));
 				}
 			}
 			return null;
@@ -193,7 +186,7 @@ public class QueryService implements NetworkServer.IService {
     	Message result = connection.request(msg);
     	if (result == null)
     		return null;
-    	return parseLocks(result.getStrings());
+    	return new Statistics(new LinkedList<String>(result.getStrings())).locks();
     }
 
     public ITransaction createTransaction() {
@@ -207,7 +200,6 @@ public class QueryService implements NetworkServer.IService {
     public interface ITransaction {
     	
     	public int getLockCount();
-    	public ILock getLockSummary(int index);
     	public ILock[] getLocks(int start, int end);
     	
     	public void close();
@@ -216,12 +208,16 @@ public class QueryService implements NetworkServer.IService {
     private class Transaction implements ITransaction {
     	
     	public Transaction(ArrayList<String> arrayList) {
-    		transactionID = arrayList.get(0);
-    		count = Integer.parseInt(arrayList.get(1));
+    		LinkedList<String> stack = new LinkedList<String>(arrayList);
+    		transactionID = stack.removeFirst();
+    		count = Integer.parseInt(stack.removeFirst());
+    		stack.addLast(Integer.toString(0)); // putting 0 locks for the moment.
+    		stats = new Statistics(stack);
 		}
 
     	String transactionID;
 		int count;
+    	Statistics stats;
 		
 		@Override
 		public int getLockCount() {
@@ -229,21 +225,12 @@ public class QueryService implements NetworkServer.IService {
 		}
 
 		@Override
-		public ILock getLockSummary(int index) {
-	    	Message msg = new Message(new ArrayList<String>(Arrays.asList(new String[] {GET_LOCK, transactionID, Integer.toString(index)})));
-	    	Message result = connection.request(msg);
-	    	if (result == null)
-	    		return null;
-	    	return parseLock(result.getStrings());
-		}
-
-		@Override
 		public ILock[] getLocks(int start, int end) {
-	    	Message msg = new Message(new ArrayList<String>(Arrays.asList(new String[] {GET_LOCK_DETAIL, transactionID, Integer.toString(start), Integer.toString(end)})));
+	    	Message msg = new Message(new ArrayList<String>(Arrays.asList(new String[] {GET_LOCK, transactionID, Integer.toString(start), Integer.toString(end)})));
 	    	Message result = connection.request(msg);
 	    	if (result == null)
 	    		return null;
-	    	return parseLocks(result.getStrings());
+	    	return stats.unSerializeLocks(new LinkedList<String>(result.getStrings()));
 		}
 
 		@Override
@@ -253,14 +240,6 @@ public class QueryService implements NetworkServer.IService {
 		}
     }
     
-    private static ILock[] parseLocks(ArrayList<String> strings) {
-		return new Statistics(strings).locks();
-	}
-
-    private static ILock parseLock(ArrayList<String> strings) {
-		return new Statistics(strings).lock();
-	}
-
 	private static class ServerConnection {
 
 		NetworkServer.Session session;
