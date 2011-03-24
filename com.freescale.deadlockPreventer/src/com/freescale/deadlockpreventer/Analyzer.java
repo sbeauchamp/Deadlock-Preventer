@@ -609,31 +609,27 @@ public class Analyzer {
 	}
 	
 	private void throwException(int type, LockInfo info) {
+		String msg = getPrintOutHeader() + getMessageHeader(type, info.lock);
 		try {
-			String msg = getPrintOutHeader() + getMessageHeader(type, info.lock);
 			try {
-				try {
-					Constructor<?> constr = classToThrow.getConstructor(String.class);
-					Object obj = constr.newInstance(msg);
-					throw (RuntimeException) obj;
-				} catch (IllegalArgumentException e) {
-					throw (RuntimeException) classToThrow.newInstance();
-				} catch (NoSuchMethodException e) {
-					throw (RuntimeException) classToThrow.newInstance();
-				} catch (InvocationTargetException e) {
-					throw (RuntimeException) classToThrow.newInstance();
-				}
-			} catch (SecurityException e) {
-				e.printStackTrace();
-			} catch (InstantiationException e) {
-				e.printStackTrace();
-			} catch (IllegalAccessException e) {
-				e.printStackTrace();
+				Constructor<?> constr = classToThrow.getConstructor(String.class);
+				Object obj = constr.newInstance(msg);
+				throw (RuntimeException) obj;
+			} catch (IllegalArgumentException e) {
+				throw (RuntimeException) classToThrow.newInstance();
+			} catch (NoSuchMethodException e) {
+				throw (RuntimeException) classToThrow.newInstance();
+			} catch (InvocationTargetException e) {
+				throw (RuntimeException) classToThrow.newInstance();
 			}
-			throw new RuntimeException(msg);
-		} catch (Throwable t) {
-			// nothing
+		} catch (SecurityException e) {
+			e.printStackTrace();
+		} catch (InstantiationException e) {
+			e.printStackTrace();
+		} catch (IllegalAccessException e) {
+			e.printStackTrace();
 		}
+		throw new RuntimeException(msg);
 	}
 
 	private static String getThreadID() {
