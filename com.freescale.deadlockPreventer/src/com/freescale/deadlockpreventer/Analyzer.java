@@ -241,7 +241,7 @@ public class Analyzer {
 
 	static class LockInfo {
 		private Object lock;
-		String lockKey;
+		Integer lockKey;
 		// is not normally set, except from statistic gathering
 		String lockID;
 		

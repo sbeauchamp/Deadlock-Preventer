@@ -75,8 +75,8 @@ public class Main {
 	@Before
 	public void setUp() throws Exception {
 		Analyzer.instance().setReportWarningsInSameThread(true);
-		Analyzer.instance().setThrowsOnError(true);
-		Analyzer.instance().setThrowsOnWarning(true);
+		Analyzer.instance().setThrowsOnError(false);
+		Analyzer.instance().setThrowsOnWarning(false);
 		Analyzer.instance().setListener(defaultReporter);
 		assertTrue(Analyzer.instance().isActive());
 		assertTrue(Analyzer.instance().shouldInstrument(Main.class));
@@ -946,6 +946,19 @@ public class Main {
 		assertTrue(reporter.lock == signal);
 		assertTrue(reporter.precedent == lock1);
 		assertTrue(reporter.conflictPrecedent == lock1);
+	}
+
+	@Test
+	public void testPerformance() {
+		long time = System.currentTimeMillis();
+		long count = 0;
+		for (int i = 0; i < 100000; i++) {
+			String lock = new String("lock_" + i);
+			synchronized(lock) {
+				count += System.currentTimeMillis();
+			}
+		}
+		System.out.println("time for " + (System.currentTimeMillis() - time) + ", count:" + count);
 	}
 }
 

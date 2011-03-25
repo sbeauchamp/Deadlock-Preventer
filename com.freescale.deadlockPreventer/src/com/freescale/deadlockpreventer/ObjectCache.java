@@ -9,7 +9,7 @@ import com.freescale.deadlockpreventer.Analyzer.CustomLock;
 // We use a custom object cache because we can't use a simple HashMap<Object>, since the object.hashCode() 
 // can be overridden by clients and cause deadlocks. 
 public class ObjectCache<T> {
-	HashMap<String, ArrayList<ObjectCache.Entry<T>>> cache = new HashMap<String, ArrayList<ObjectCache.Entry<T>>>();
+	HashMap<Integer, ArrayList<ObjectCache.Entry<T>>> cache = new HashMap<Integer, ArrayList<ObjectCache.Entry<T>>>();
 	
 	public T get(Object obj) {
 		return getFromKey(getKey(obj), obj);
@@ -29,7 +29,7 @@ public class ObjectCache<T> {
 	}
 	
 	public T getOrCreate(Object obj, Class<T> cls) {
-		String key = getKey(obj);
+		Integer key = getKey(obj);
 		ArrayList<ObjectCache.Entry<T>> cacheLine = cache.get(key);
 		if (cacheLine != null) {
 			ListIterator<ObjectCache.Entry<T>> iterator = cacheLine.listIterator(cacheLine.size());
@@ -53,15 +53,15 @@ public class ObjectCache<T> {
 		return value;
 	}
 
-	public static String getKey(Object obj) {
+	public static Integer getKey(Object obj) {
 		Class<?> cls = obj.getClass();
 		if (cls.equals(CustomLock.class))
 			cls = ((CustomLock) obj).lock.getClass();
-		return cls.getSimpleName();
+		return System.identityHashCode(obj);
 	}
 
 	public void put(Object obj, T value) {
-		String key = getKey(obj);
+		Integer key = getKey(obj);
 		ArrayList<ObjectCache.Entry<T>> cacheLine = cache.get(key);
 		if (cacheLine == null) {
 			cacheLine = new ArrayList<ObjectCache.Entry<T>>();

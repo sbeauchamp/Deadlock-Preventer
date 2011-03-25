@@ -224,7 +224,7 @@ class IncompleteLockImpl extends LockImpl
 		this.object = object;
 	}
 	
-	String key;  
+	Integer key;  
 	Object object;
 	AcquisitionOrder order;
 }

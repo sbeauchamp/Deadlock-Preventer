@@ -5,7 +5,7 @@ Require-Bundle: org.eclipse.ui,org.eclipse.core.runtime,com.freescale.
 Bundle-Vendor: Freescale Semiconductor
 Bundle-ActivationPolicy: lazy
 Bundle-ClassPath: agent.jar
-Bundle-Version: 1.0.0.201103241853
+Bundle-Version: 1.0.0.201103251534
 Bundle-Name: Deadlock Preventer Agent
 Bundle-Activator: com.freescale.deadlockpreventer.agent.Activator
 Bundle-ManifestVersion: 2
