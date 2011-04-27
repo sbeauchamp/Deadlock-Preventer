@@ -41,11 +41,11 @@
          </property>
          <property
                name="windowImages"
-               value="icons/codewarrior.gif">
+               value="icons/deadlockpreventer.gif">
          </property>
          <property
                name="aboutImage"
-               value="icons/codewarrior.gif">
+               value="icons/deadlockpreventer.gif">
          </property>
          <property
                name="appName"
