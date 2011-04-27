@@ -4,7 +4,7 @@
 <product name="Deadlock Preventer Launcher" uid="com.freescale.deadlockpreventer.agent.product" id="com.freescale.deadlockpreventer.agent.product" application="com.freescale.deadlockpreventer.agent.application" version="1.0.0.qualifier" useFeatures="false" includeLaunchers="true">
 
    <aboutInfo>
-      <image path="icons/codewarrior.gif"/>
+      <image path="icons/deadlockpreventer.gif"/>
       <text>
          Deadlock Preventer Agent, Freescale Semiconductor, copyright 2010 all rights reserved.
       </text>
@@ -17,13 +17,13 @@
       <vmArgsMac>-XstartOnFirstThread -Dorg.eclipse.swt.internal.carbon.smallFonts</vmArgsMac>
    </launcherArgs>
 
-   <windowImages i16="icons/codewarrior.gif"/>
+   <windowImages i16="icons/deadlockpreventer.gif"/>
 
 
    <launcher name="deadlock_preventer">
       <solaris/>
       <win useIco="true">
-         <ico path="/com.freescale.deadlockpreventer.agent/icons/cwide.ico"/>
+         <ico path="/com.freescale.deadlockpreventer.agent/icons/deadlockpreventer.ico"/>
          <bmp/>
       </win>
    </launcher>
