@@ -9,7 +9,6 @@ import java.util.LinkedList;
 import java.util.Map.Entry;
 
 import com.freescale.deadlockpreventer.Analyzer.AcquisitionOrder;
-import com.freescale.deadlockpreventer.Analyzer.LockInfo;
 
 public class Statistics
 {
@@ -27,7 +26,7 @@ public class Statistics
 			}
 			for (ArrayList<ObjectCache.Entry<AcquisitionOrder>> list : Analyzer.instance().globalOrder.cache.values()) {
 				for (ObjectCache.Entry<AcquisitionOrder> entry : list) {
-					String id = Analyzer.safeToString(entry.object);
+					String id = Util.safeToString(entry.object);
 					LockImpl lock = locks.get(id);
 					for (LockInfo info : entry.value.order) {
 						String precedentId = getLockID(info);
@@ -60,7 +59,7 @@ public class Statistics
 	
 	private String getLockID(LockInfo info) {
 		if (info.lockID == null)
-			info.lockID = Analyzer.safeToString(info.getLock());
+			info.lockID = Util.safeToString(info.getLock());
 		return info.lockID;
 	}
 
@@ -239,7 +238,7 @@ class LockImpl implements ILock
 	
 	public LockImpl(Object object, StringTable stringTable) {
 		this.st = stringTable;
-		id = st.get(Analyzer.safeToString(object));
+		id = st.get(Util.safeToString(object));
 	}
 
 	public LockImpl(StringTable stringTable) {

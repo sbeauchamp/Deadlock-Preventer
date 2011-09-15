@@ -220,7 +220,7 @@ public class ConsoleNetworkServer {
 			System.out.println("lock index(" + index + ") not found");
 		else {
 			PrintWriter writer = new PrintWriter(System.out);
-			Analyzer.dumpLockInformation(new ILock[] {lock}, writer);
+			Logger.dumpLockInformation(new ILock[] {lock}, writer);
 			writer.flush();
 		}
 		return 0;
@@ -241,7 +241,7 @@ public class ConsoleNetworkServer {
 			System.out.println("lock index(" + index + ") not found");
 		else {
 			PrintWriter writer = new PrintWriter(System.out);
-			Analyzer.dumpLockInformation(locks, writer);
+			Logger.dumpLockInformation(locks, writer);
 			writer.flush();
 		}
 		return 0;
@@ -264,7 +264,7 @@ public class ConsoleNetworkServer {
 				System.out.println("lock index(" + index + ") not found");
 			else {
 				PrintWriter writer = new PrintWriter(System.out);
-				Analyzer.dumpLockInformation(locks, writer);
+				Logger.dumpLockInformation(locks, writer);
 				writer.flush();
 			}
 			index += DEFAULT_PACKET_SIZE;
@@ -300,7 +300,7 @@ public class ConsoleNetworkServer {
 				if (locks == null)
 					System.out.println("lock index(" + index + ") not found");
 				else {
-					Analyzer.dumpLockInformation(locks, writer);
+					Logger.dumpLockInformation(locks, writer);
 				}
 				index += DEFAULT_PACKET_SIZE;
 			}

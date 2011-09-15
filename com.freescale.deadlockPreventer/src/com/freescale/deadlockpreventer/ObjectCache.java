@@ -4,8 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.ListIterator;
 
-import com.freescale.deadlockpreventer.Analyzer.CustomLock;
-
 // We use a custom object cache because we can't use a simple HashMap<Object>, since the object.hashCode() 
 // can be overridden by clients and cause deadlocks. 
 public class ObjectCache<T> {

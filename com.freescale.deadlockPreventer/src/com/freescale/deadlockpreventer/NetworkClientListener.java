@@ -57,13 +57,13 @@ public class NetworkClientListener implements IConflictListener {
 			}
 			this.threadID = threadID;
 			this.conflictThreadID = conflictThreadID;
-			this.lock = Analyzer.safeToString(lock);
+			this.lock = Util.safeToString(lock);
 			this.lockStack = convertToString(lockStack);
-			this.precedent = Analyzer.safeToString(precedent);
+			this.precedent = Util.safeToString(precedent);
 			this.precedentStack = convertToString(precedentStack);
-			this.conflict = Analyzer.safeToString(conflict);
+			this.conflict = Util.safeToString(conflict);
 			this.conflictStack = convertToString(conflictStack);
-			this.conflictPrecedent = Analyzer.safeToString(conflictPrecedent);
+			this.conflictPrecedent = Util.safeToString(conflictPrecedent);
 			this.conflictPrecedentStack = convertToString(conflictPrecedentStack);
 			this.message = message;
 		}
@@ -229,7 +229,7 @@ public class NetworkClientListener implements IConflictListener {
 			try {
 				return msg.sendTo(session.getOutput(), session.getInput());
 			} catch (IOException e) {
-				System.out.println(Analyzer.getPrintOutHeader() + "Error network communication: " + e.getMessage());
+				System.out.println(Logger.getPrintOutHeader() + "Error network communication: " + e.getMessage());
 			}
 		}
 		return CONTINUE | LOG_TO_CONSOLE;
