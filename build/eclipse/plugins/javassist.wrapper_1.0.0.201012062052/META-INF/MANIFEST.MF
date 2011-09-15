@@ -8,7 +8,7 @@ Export-Package: javassist,javassist.bytecode,javassist.bytecode.analys
 Require-Bundle: org.eclipse.ui,org.eclipse.core.runtime
 Bundle-ActivationPolicy: lazy
 Bundle-ClassPath: javassist.jar
-Bundle-Version: 1.0.0.201103251534
+Bundle-Version: 1.0.0.201012062052
 Bundle-Name: Javassist Library forked from 3.12GA
 Bundle-Activator: javassist.wrapper.Activator
 Bundle-ManifestVersion: 2
