@@ -32,12 +32,12 @@ public class LockInfo {
 	
 	public void print(String header) {
 		StringBuffer buffer = new StringBuffer();
-		Logger.printStrackTrace(buffer, header, stackTrace, 3);
+		Logger.printStrackTrace(buffer, header, stackTrace, Logger.FIRST_STACK_TRACE_ELEMENT);
 		System.out.print(buffer.toString());
 	}
 	
 	public void print(StringBuffer buffer, String header) {
-		Logger.printStrackTrace(buffer, header, stackTrace, 3);
+		Logger.printStrackTrace(buffer, header, stackTrace, Logger.FIRST_STACK_TRACE_ELEMENT);
 	}
 	
 	public String toString() {

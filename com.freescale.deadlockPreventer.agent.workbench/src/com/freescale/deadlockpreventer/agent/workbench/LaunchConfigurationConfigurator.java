@@ -37,7 +37,7 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.progress.UIJob;
 
-import com.freescale.deadlockpreventer.Analyzer;
+import com.freescale.deadlockpreventer.Settings;
 import com.freescale.deadlockpreventer.agent.IAgent;
 import com.freescale.deadlockpreventer.agent.IAgent.IProcess;
 import com.freescale.deadlockpreventer.agent.IConfigurator;
@@ -230,8 +230,8 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 				if (attr.startsWith(prefixAgentPrefix) ||
 						attr.startsWith(prefixBootClassPathPrefix) ||
 						attr.startsWith(prefixServerPortPrefix) ||
-						attr.contains(Analyzer.PROPERTY_QUERY_SERVICE) ||
-						attr.contains(Analyzer.PROPERTY_REPORT_SERVICE))
+						attr.contains(Settings.QUERY_SERVICE) ||
+						attr.contains(Settings.REPORT_SERVICE))
 					continue;
 				newAttributes.append(attr + SPACE);
 			}

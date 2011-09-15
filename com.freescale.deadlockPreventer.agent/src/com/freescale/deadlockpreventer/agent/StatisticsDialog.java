@@ -45,8 +45,8 @@ import org.eclipse.swt.widgets.TableColumn;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.swt.IFocusService;
 
-import com.freescale.deadlockpreventer.Analyzer;
 import com.freescale.deadlockpreventer.ILock;
+import com.freescale.deadlockpreventer.Logger;
 import com.freescale.deadlockpreventer.QueryService.ITransaction;
 
 public class StatisticsDialog extends Dialog {
@@ -153,7 +153,7 @@ public class StatisticsDialog extends Dialog {
 				Row row = (Row) element;
 				ILock[] locks = transaction.getLocks(row.index, row.index + 1);
 				CharArrayWriter writer = new CharArrayWriter();
-				Analyzer.dumpLockInformation(locks, writer);
+				Logger.dumpLockInformation(locks, writer);
 				return writer.toString();
 			}
             public Point getToolTipShift(Object object) {
@@ -362,7 +362,7 @@ public class StatisticsDialog extends Dialog {
    		for (Object selectedRow : ((IStructuredSelection) viewer.getSelection()).toList()) {
    			Row row = (Row) selectedRow;
    			ILock[] locks = transaction.getLocks(row.index, row.index + 1);
-   			Analyzer.dumpLockInformation(locks, writer);
+   			Logger.dumpLockInformation(locks, writer);
 		}
 		Clipboard cb = new Clipboard(Display.getDefault());
 		TextTransfer textTransfer = TextTransfer.getInstance();

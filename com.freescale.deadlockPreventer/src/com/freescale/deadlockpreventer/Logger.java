@@ -9,11 +9,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 
 public class Logger {
-	
+
 	private boolean abortOnErrors = false;
 	private boolean reportRecurentConflicts = false;
 	private ArrayList<ConflictReport> alreadyReportedConflicts = new ArrayList<ConflictReport>();
-	private String debugException = IllegalMonitorStateException.class.getCanonicalName();
+	private String debugException = IllegalMonitorStateException.class
+			.getCanonicalName();
 	private Class<?> classToThrow = OrderingException.class;
 	private IConflictListener listener = new DefaultListener();
 
@@ -26,7 +27,8 @@ public class Logger {
 				StackTraceElement[] conflictPrecedentStack, String message) {
 			if (abortOnErrors && ((type & Analyzer.TYPE_ERROR) != 0))
 				return IConflictListener.ABORT;
-			return IConflictListener.CONTINUE | IConflictListener.LOG_TO_CONSOLE;
+			return IConflictListener.CONTINUE
+					| IConflictListener.LOG_TO_CONSOLE;
 		}
 	}
 
@@ -44,12 +46,14 @@ public class Logger {
 		value = System.getProperty(Settings.LOG_TO_FILE);
 		if (value != null)
 			listener = new FileListener(value);
-		
+
 		value = System.getProperty(Settings.LOG_TO_STREAM);
 		if (value != null)
-			listener = new StdListener(value.equals("out")? System.out:System.err);
+			listener = new StdListener(value.equals("out") ? System.out
+					: System.err);
 
-		reportRecurentConflicts = Boolean.getBoolean(Settings.REPORT_RECURENT_CONFLICTS);
+		reportRecurentConflicts = Boolean
+				.getBoolean(Settings.REPORT_RECURENT_CONFLICTS);
 		abortOnErrors = Boolean.getBoolean(Settings.ABORT_ON_ERRORS);
 
 		value = System.getProperty(Settings.THROWING_CLASS);
@@ -63,23 +67,24 @@ public class Logger {
 			}
 		}
 	}
-	
+
 	public void setListener(IConflictListener listener) {
 		if (listener == null)
 			listener = new DefaultListener();
 		this.listener = listener;
 	}
 
-	public boolean reportConflict(int type, String threadID, String conflictThreadID, LockInfo info, LockInfo precedent,
+	public boolean reportConflict(int type, String threadID,
+			String conflictThreadID, LockInfo info, LockInfo precedent,
 			LockInfo conflictLock, LockInfo conflictPrecedent) {
 		if (!reportRecurentConflicts) {
-			synchronized(alreadyReportedConflicts) {
-				ConflictReport report = new ConflictReport(threadID, 
-						conflictThreadID, 
-						info != null ? info.getLock() : null, 
-								precedent != null ? precedent.getLock() : null, 
-										conflictLock != null ? conflictLock.getLock() : null, 
-												conflictPrecedent != null ? conflictPrecedent.getLock() : null);
+			synchronized (alreadyReportedConflicts) {
+				ConflictReport report = new ConflictReport(threadID,
+						conflictThreadID, info != null ? info.getLock() : null,
+						precedent != null ? precedent.getLock() : null,
+						conflictLock != null ? conflictLock.getLock() : null,
+						conflictPrecedent != null ? conflictPrecedent.getLock()
+								: null);
 				if (alreadyReportedConflicts.contains(report))
 					return false;
 				alreadyReportedConflicts.add(report);
@@ -87,96 +92,148 @@ public class Logger {
 		}
 		boolean shouldThrow = false;
 		StringBuffer buffer = new StringBuffer();
-		buffer.append(getPrintOutHeader() + getMessageHeader(type, info.getLock()) + " in thread: " + threadID + "\n");
+		buffer.append(getPrintOutHeader() + getMessageHeader(type, threadID)
+				+ "\n");
 		String indent = "  ";
-		if (type == Analyzer.TYPE_ERROR_SIGNAL) {
-			info.print(buffer, getEmptyPrintOutHeader() + indent);
-			
-			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "While holding lock: " + Util.safeToString(conflictPrecedent.getLock())  + "\n");
-			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
 
-			if (conflictLock != null) {
-				buffer.append("\n");
-				buffer.append(getEmptyPrintOutHeader() + "Previously acquired signal: " + Util.safeToString(conflictLock.getLock())  + "\n");
-				conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
-			}
+		printMergedStacks(buffer, info, precedent, indent);
+		buffer.append("\nand thread: " + conflictThreadID + "\n");
+		printMergedStacks(buffer, conflictPrecedent, conflictLock, indent);
 
-			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "Previously held lock: " + Util.safeToString(precedent.getLock())  + " in thread: " + conflictThreadID  + "\n");
-			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
-		}
-		else {
-			info.print(buffer, getEmptyPrintOutHeader() + indent);
-			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "with predecent : " + Util.safeToString(precedent.getLock()) + "\n");
-			precedent.print(buffer, getEmptyPrintOutHeader() + indent);
-			
-			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "Previously acquired lock: " + Util.safeToString(conflictLock.getLock())  + " in thread: " + conflictThreadID  + "\n");
-			conflictLock.print(buffer, getEmptyPrintOutHeader() + indent);
+		int result = listener
+				.report(type,
+						threadID,
+						conflictThreadID,
+						CustomLock.getExternal(info.getLock()),
+						info.stackTrace,
+						CustomLock.getExternal(precedent.getLock()),
+						precedent.stackTrace,
+						conflictLock != null ? CustomLock
+								.getExternal(conflictLock.getLock()) : null,
+						conflictLock != null ? conflictLock.stackTrace : null,
+						conflictPrecedent != null ? CustomLock
+								.getExternal(conflictPrecedent.getLock())
+								: null,
+						conflictPrecedent != null ? conflictPrecedent.stackTrace
+								: null, buffer.toString());
 
-			buffer.append("\n");
-			buffer.append(getEmptyPrintOutHeader() + "Previously acquired precedent: " + Util.safeToString(conflictPrecedent.getLock())  + "\n");
-			conflictPrecedent.print(buffer, getEmptyPrintOutHeader() + indent);
-		}
-
-		int result = listener.report(type, 
-				threadID, 
-				conflictThreadID, 
-				CustomLock.getExternal(info.getLock()), 
-				info.stackTrace, 
-				CustomLock.getExternal(precedent.getLock()), 
-				precedent.stackTrace, 
-				conflictLock != null ? CustomLock.getExternal(conflictLock.getLock()) : null, 
-				conflictLock != null ? conflictLock.stackTrace : null, 
-				conflictPrecedent != null ? CustomLock.getExternal(conflictPrecedent.getLock()) : null, 
-				conflictPrecedent != null ? conflictPrecedent.stackTrace : null, 
-				buffer.toString());
-		
 		if ((result & IConflictListener.DEBUG) != 0) {
 			debug();
 		}
 		if ((result & IConflictListener.EXCEPTION) != 0)
 			shouldThrow = true;
-		
+
 		if ((result & IConflictListener.LOG_TO_CONSOLE) != 0)
 			System.out.println(buffer.toString());
 
 		if ((result & IConflictListener.ABORT) != 0)
 			System.exit(-1);
-		
+
 		return shouldThrow;
+	}
+
+	/* The stack traces collected stack inside the Analyzer code, so in order
+	 * to show only the relevant stack traces to the user, we must skip the first
+	 * 3 stack trace elements, as shown below: 
+		  java.lang.Thread.getStackTrace(Thread.java:1436)
+		  com.freescale.deadlockpreventer.Analyzer.enterLock_(Analyzer.java:267)
+		  com.freescale.deadlockpreventer.Analyzer.enterLock(Analyzer.java:242)
+	 * 
+	 */
+	public static final int FIRST_STACK_TRACE_ELEMENT = 3;
+	
+	
+	private void printMergedStacks(StringBuffer buffer, LockInfo lock,
+			LockInfo precedent, String indent) {
+		
+		StackTraceElement[] elements = lock.stackTrace;
+		StackTraceElement[] precedentElements = precedent.stackTrace;
+
+		if (elements != null && elements.length > FIRST_STACK_TRACE_ELEMENT
+				&& precedentElements != null && precedentElements.length > FIRST_STACK_TRACE_ELEMENT) {
+			buffer.append(indent + elements[FIRST_STACK_TRACE_ELEMENT].toString() + "     <--  acquiring: "
+					+ Util.safeToString(lock.getLock()));
+
+			// Find how many elements are common to both stack traces.
+			// If the lock stack trace is:
+			// A
+			// B
+			// C
+			// And the precedent stack trace is:
+			// D
+			// B
+			// C
+			// then the number of common stack trace elements is 2.
+
+			int commonStackTraceElements = 0;
+			int maximumCommonStackTraceElements = Math.min(elements.length - FIRST_STACK_TRACE_ELEMENT,
+					precedentElements.length - FIRST_STACK_TRACE_ELEMENT);
+
+			for (; commonStackTraceElements < maximumCommonStackTraceElements; commonStackTraceElements++) {
+				String lastLine = elements[elements.length
+						- commonStackTraceElements - 1].toString();
+				String precedentLastLine = precedentElements[precedentElements.length
+						- commonStackTraceElements - 1].toString();
+				if (!lastLine.equals(precedentLastLine))
+					break;
+			}
+
+			for (int i = FIRST_STACK_TRACE_ELEMENT + 1; i < (elements.length - maximumCommonStackTraceElements); i++) {
+				buffer.append("\n" + indent + elements[i].toString());
+			}
+
+			buffer.append("\n" + indent + precedentElements[FIRST_STACK_TRACE_ELEMENT].toString()
+					+ "     <--  acquiring: "
+					+ Util.safeToString(precedent.getLock()));
+
+			for (int i = FIRST_STACK_TRACE_ELEMENT + 1; i < precedentElements.length; i++) {
+				buffer.append("\n" + indent + precedentElements[i].toString());
+			}
+		}
 	}
 
 	static String getPrintOutHeader() {
 		return "***DEADLOCK PREVENTER*** ";
 	}
 
-	private String getMessageHeader(int type, Object lock) {
+	private String getMessageHeader(int type, String threadId) {
 		String msg = "ERROR";
-		switch (type)
-		{
+		switch (type) {
 		case Analyzer.TYPE_ERROR:
-			msg = "ERROR: Inconsistent locking order while acquiring lock: " + Util.safeToString(lock);;
+			msg = "ERROR: Inconsistent locking order while acquiring locks in thread : "
+					+ threadId;
 			break;
 		case Analyzer.TYPE_WARNING:
-			msg = "WARNING: Inconsistent locking order while acquiring lock: " + Util.safeToString(lock);;
+			msg = "WARNING: Inconsistent locking order while acquiring locks in thread  "
+					+ threadId;
 			break;
 		case Analyzer.TYPE_ERROR_SIGNAL:
-			msg = "ERROR: Inconsistent messaging order while signaling object: " + Util.safeToString(lock);;
+			msg = "ERROR: Inconsistent messaging order while signaling objects in thread  "
+					+ threadId;
 			break;
 		}
-		
+
 		return msg;
 	}
 
-	private String getEmptyPrintOutHeader() {
-		int count = getPrintOutHeader().length();
-		StringBuilder builder = new StringBuilder();
-		while(count-- > 0)
-			builder.append(" ");
-		return builder.toString();
+	private String getMessageHeader(int type, LockInfo info) {
+		String msg = "ERROR";
+		switch (type) {
+		case Analyzer.TYPE_ERROR:
+			msg = "ERROR: Inconsistent locking order while acquiring lock: "
+					+ Util.safeToString(info.getLock());
+			break;
+		case Analyzer.TYPE_WARNING:
+			msg = "WARNING: Inconsistent locking order while acquiring lock: "
+					+ Util.safeToString(info.getLock());
+			break;
+		case Analyzer.TYPE_ERROR_SIGNAL:
+			msg = "ERROR: Inconsistent messaging order while signaling objects: "
+					+ Util.safeToString(info.getLock());
+			break;
+		}
+
+		return msg;
 	}
 
 	public static void dumpLockInformation(String file) {
@@ -198,23 +255,29 @@ public class Logger {
 		ILock[] locks = new Statistics().locks();
 		dumpLockInformation(locks, writer);
 	}
-	
+
 	public static void dumpLockInformation(ILock[] locks, Writer writer) {
 		try {
 			for (ILock lock : locks) {
-				writer.write("lock: " + lock.getID() + ", precedents(" + lock.getPrecedents().length + ") followers(" + lock.getFollowers().length + ")\n");
+				writer.write("lock: " + lock.getID() + ", precedents("
+						+ lock.getPrecedents().length + ") followers("
+						+ lock.getFollowers().length + ")\n");
 				writeStack(writer, "  ", lock.getStackTrace());
 				if (lock.getPrecedents().length > 0) {
 					writer.write("  precedents:\n");
 					for (IContext context : lock.getPrecedents()) {
-						writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")\n");
+						writer.write("    " + context.getLock().getID()
+								+ ", thread id(" + context.getThreadID()
+								+ ")\n");
 						writeStack(writer, "     ", context.getStackTrace());
 					}
 				}
 				if (lock.getFollowers().length > 0) {
 					writer.write("  followers:\n");
 					for (IContext context : lock.getFollowers()) {
-						writer.write("    " + context.getLock().getID() + ", thread id(" + context.getThreadID() + ")\n");
+						writer.write("    " + context.getLock().getID()
+								+ ", thread id(" + context.getThreadID()
+								+ ")\n");
 						writeStack(writer, "     ", context.getStackTrace());
 					}
 				}
@@ -224,17 +287,19 @@ public class Logger {
 		}
 	}
 
-	private static void writeStack(Writer writer, String prefix, String[] stackTrace) throws IOException {
+	private static void writeStack(Writer writer, String prefix,
+			String[] stackTrace) throws IOException {
 		for (String stack : stackTrace) {
 			writer.write(prefix + stack + "\n");
 		}
 	}
 
 	public void throwException(int type, LockInfo info) {
-		String msg = Logger.getPrintOutHeader() + getMessageHeader(type, info.getLock());
+		String msg = Logger.getPrintOutHeader() + getMessageHeader(type, info);
 		try {
 			try {
-				Constructor<?> constr = classToThrow.getConstructor(String.class);
+				Constructor<?> constr = classToThrow
+						.getConstructor(String.class);
 				Object obj = constr.newInstance(msg);
 				throw (RuntimeException) obj;
 			} catch (IllegalArgumentException e) {
@@ -276,8 +341,9 @@ public class Logger {
 		printStrackTrace(buffer, new String(), stackTrace, 0);
 		System.out.print(buffer.toString());
 	}
-	
-	public static void printStrackTrace(StringBuffer buffer, String header, StackTraceElement[] stackTrace, int startOffset) {
+
+	public static void printStrackTrace(StringBuffer buffer, String header,
+			StackTraceElement[] stackTrace, int startOffset) {
 		for (int i = startOffset; i < stackTrace.length; i++)
 			buffer.append(header + stackTrace[i].toString() + "\n");
 	}

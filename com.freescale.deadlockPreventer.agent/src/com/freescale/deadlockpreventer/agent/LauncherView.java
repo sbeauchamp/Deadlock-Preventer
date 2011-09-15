@@ -75,7 +75,6 @@ import org.eclipse.ui.part.ViewPart;
 import org.eclipse.ui.progress.UIJob;
 import org.osgi.framework.Bundle;
 
-import com.freescale.deadlockpreventer.Analyzer;
 import com.freescale.deadlockpreventer.IConflictListener;
 import com.freescale.deadlockpreventer.ILock;
 import com.freescale.deadlockpreventer.NetworkServer;
@@ -83,6 +82,7 @@ import com.freescale.deadlockpreventer.NetworkServer.Session;
 import com.freescale.deadlockpreventer.QueryService;
 import com.freescale.deadlockpreventer.QueryService.ITransaction;
 import com.freescale.deadlockpreventer.ReportService;
+import com.freescale.deadlockpreventer.Settings;
 
 public class LauncherView extends ViewPart implements IAgent {
 	
@@ -366,8 +366,8 @@ public class LauncherView extends ViewPart implements IAgent {
 			{
 				NetworkServer server = Activator.getDefault().getServer();
 				InstrumentedProcess instrumentedProcess = (InstrumentedProcess) process;
-				return "-D" + Analyzer.PROPERTY_REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.reportKey + 
-				" -D" + Analyzer.PROPERTY_QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.queryKey;
+				return "-D" + Settings.REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.reportKey + 
+				" -D" + Settings.QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.queryKey;
 			}
 		}
 		return null;

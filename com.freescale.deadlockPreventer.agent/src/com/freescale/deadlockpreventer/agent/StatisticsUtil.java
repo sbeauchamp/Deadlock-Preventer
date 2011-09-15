@@ -11,8 +11,8 @@ import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.ui.PlatformUI;
 
-import com.freescale.deadlockpreventer.Analyzer;
 import com.freescale.deadlockpreventer.ILock;
+import com.freescale.deadlockpreventer.Logger;
 import com.freescale.deadlockpreventer.QueryService.ITransaction;
 
 public class StatisticsUtil {
@@ -40,7 +40,7 @@ public class StatisticsUtil {
 						while (index < count) {
 							ILock[] tmp = transaction.getLocks(index, Math.min(index + interval, count));
 							monitor.worked(tmp.length);
-							Analyzer.dumpLockInformation(tmp, writer);
+							Logger.dumpLockInformation(tmp, writer);
 							index += interval;
 							if (monitor.isCanceled())
 								break;
