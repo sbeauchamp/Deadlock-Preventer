@@ -1,4 +1,4 @@
-This consist of the first EPL release of the deadlock preventer by Freescale.
+This consist of the first EPL release of the deadlock preventer by Freescale Semiconductor, all rights reserved.
 
 The deadlock preventer is a tool that dynamically instruments the java bytecode of an application 
 when running in a java virtual machine in order to analyze the lock ordering and detect potential 
