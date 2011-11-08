@@ -12,10 +12,8 @@ package com.freescale.deadlockpreventer.agent;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.regex.Pattern;
@@ -31,8 +29,6 @@ import org.eclipse.core.runtime.preferences.InstanceScope;
 import org.eclipse.jface.dialogs.IInputValidator;
 import org.eclipse.jface.dialogs.InputDialog;
 import org.eclipse.jface.dialogs.MessageDialog;
-import org.eclipse.jface.dialogs.ProgressMonitorDialog;
-import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.jface.viewers.DoubleClickEvent;
 import org.eclipse.jface.viewers.IDoubleClickListener;
 import org.eclipse.jface.viewers.IStructuredContentProvider;
@@ -76,11 +72,9 @@ import org.eclipse.ui.progress.UIJob;
 import org.osgi.framework.Bundle;
 
 import com.freescale.deadlockpreventer.IConflictListener;
-import com.freescale.deadlockpreventer.ILock;
 import com.freescale.deadlockpreventer.NetworkServer;
 import com.freescale.deadlockpreventer.NetworkServer.Session;
 import com.freescale.deadlockpreventer.QueryService;
-import com.freescale.deadlockpreventer.QueryService.ITransaction;
 import com.freescale.deadlockpreventer.ReportService;
 import com.freescale.deadlockpreventer.Settings;
 
@@ -91,149 +85,19 @@ public class LauncherView extends ViewPart implements IAgent {
 	public static final String ID = "com.freescale.deadlockpreventer.agent.launcherView";
 	
 	private TreeViewer viewer;
+
 	private Button terminate;
 	private Button throwsException;
 	private Button interactive;
 	private StyledText outputText;
-	private ArrayList<InstrumentedProcess> processes = new ArrayList<LauncherView.InstrumentedProcess>();
+	private ArrayList<InstrumentedProcess> processes = new ArrayList<InstrumentedProcess>();
 
 	private Button logAndContinue;
 
 	private Button displayWarning;
 	
 	
-	class InstrumentedProcess implements ReportService.IListener, IProcess
-	{
-		String label;
-		String reportKey;
-		String queryKey;
-		private QueryService queryService;
-		
-		public InstrumentedProcess(String label) {
-			this.label = label;
-		}
 
-		public String toString() {
-			return label;
-		}
-		
-		@Override
-		public int report(String type, String threadID,
-				String conflictThreadID, String lock, String[] lockStack,
-				String precedent, String[] precedentStack, String conflict,
-				String[] conflictStack, String conflictPrecedent,
-				String[] conflictPrecedentStack, String message) {
-			final Conflict conflictItem = new Conflict(this, type, threadID, conflictThreadID, 
-				lock, lockStack, 
-				precedent, precedentStack,
-				conflict, conflictStack,
-				conflictPrecedent, conflictPrecedentStack, message);
-			conflictList.add(conflictItem);
-			ConflictHandler handler = new ConflictHandler(conflictItem);
-			Display.getDefault().syncExec(handler);
-			return handler.result;
-		}
-		
-		protected Conflict[] getDisplayedConflicts() {
-			String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
-			
-			String[] filters = filtersString.split(";");
-			Pattern[] patterns = new Pattern[filters.length];
-			for (int i = 0; i < filters.length; i++) {
-				patterns[i] = Pattern.compile(filters[i]);
-			}
-			boolean showWarning = displayWarning.getSelection();
-			ArrayList<Conflict> list = new ArrayList<LauncherView.Conflict>();
-			for (Conflict conflict : conflictList) {
-				if (!showWarning && !conflict.isError())
-					continue;
-				
-				boolean passFilters = true;
-				for (Pattern pattern : patterns) {
-					if (pattern.matcher(conflict.conflict).matches() ||
-							pattern.matcher(conflict.precedent).matches()) {
-						passFilters = false;
-						break;
-					}
-				}
-				if (passFilters)
-					list.add(conflict);
-			}
-			return list.toArray(new Conflict[0]);
-		}
-
-		private ArrayList<Conflict> conflictList = new ArrayList<LauncherView.Conflict>();
-		
-		public void setReportKey(String reportKey) {
-			this.reportKey = reportKey;
-		}
-
-		public void setQueryKey(String queryKey) {
-			this.queryKey = queryKey;
-		}
-
-		public void displayStatistics() {
-			if (!queryService.isConnected()) {
-			   try {
-				new ProgressMonitorDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell()).run(true, true, new IRunnableWithProgress() {
-						@Override
-						public void run(IProgressMonitor monitor) throws InvocationTargetException,
-								InterruptedException {
-							while (!queryService.isConnected()) {
-								if (Display.getDefault().readAndDispatch())
-									Thread.sleep(100);
-								if (monitor.isCanceled())
-									break;
-							}
-							
-						}
-					});
-				} catch (InvocationTargetException e) {
-					e.printStackTrace();
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-			}
-			if (queryService.isConnected()) {
-				final ArrayList<StatisticsDialog.Row> locks = new ArrayList<StatisticsDialog.Row>();
-				final ITransaction[] transactions = new ITransaction[1];
-				if (!queryService.isClosed()) {
-					try {
-						new ProgressMonitorDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell()).run(true, true, new IRunnableWithProgress() {
-							@Override
-							public void run(IProgressMonitor monitor) throws InvocationTargetException,
-									InterruptedException {
-								transactions[0] = queryService.createTransaction();
-								int count = transactions[0].getLockCount();
-								monitor.beginTask("Downloading statistics...", count);
-								int index = 0;
-								int interval = 100;
-								while (index < count) {
-									ILock[] tmp = transactions[0].getLocks(index, Math.min(index + interval, count));
-									monitor.worked(tmp.length);
-									locks.addAll(Arrays.asList(StatisticsDialog.convert(index, tmp)));
-									index += interval;
-									if (monitor.isCanceled())
-										break;
-								}
-								monitor.done();
-							}
-						});
-					} catch (InvocationTargetException e) {
-						e.printStackTrace();
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-				}
-				if (locks.size() == 0)
-					MessageDialog.openError(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), "Can't retrieve process information", "Process need to be running to get lock information.");
-				else {
-					StatisticsDialog dialog = new StatisticsDialog(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getShell(), locks.toArray(new StatisticsDialog.Row[0]), transactions[0]);
-					dialog.open();
-				}
-			}
-		}
-	}
 	
 	public String getPref(String key, String defaultValue) {
 		return new InstanceScope().getNode(Activator.PLUGIN_ID).get(key, defaultValue);
@@ -263,7 +127,7 @@ public class LauncherView extends ViewPart implements IAgent {
 	public IProcess createProcess(String label) {
 		NetworkServer server = Activator.getDefault().getServer();
 		String reportKey = server.createNewSessionKey(ReportService.ID);
-		final InstrumentedProcess process = new InstrumentedProcess(getUniqueLabel(label));
+		final InstrumentedProcess process = new InstrumentedProcess(this, getUniqueLabel(label));
 		ReportService service = new ReportService() {
 			public void handle(Session session) {
 				super.handle(session);
@@ -277,8 +141,8 @@ public class LauncherView extends ViewPart implements IAgent {
 		server.registerSevice(reportKey, service);
 		
 		String queryKey = server.createNewSessionKey(QueryService.ID);
-		process.queryService = new QueryService();
-		server.registerSevice(queryKey, process.queryService);
+		process.setQueryService(new QueryService());
+		server.registerSevice(queryKey, process.getQueryService());
 		
 		process.setReportKey(reportKey);
 		process.setQueryKey(queryKey);
@@ -306,7 +170,7 @@ public class LauncherView extends ViewPart implements IAgent {
 
 	private boolean isProcessNameUnique(String newLabel) {
 		for (InstrumentedProcess process : processes) {
-			if (process.label.equals(newLabel))
+			if (process.getLabel().equals(newLabel))
 				return false;
 		}
 		return true;
@@ -366,76 +230,11 @@ public class LauncherView extends ViewPart implements IAgent {
 			{
 				NetworkServer server = Activator.getDefault().getServer();
 				InstrumentedProcess instrumentedProcess = (InstrumentedProcess) process;
-				return "-D" + Settings.REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.reportKey + 
-				" -D" + Settings.QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.queryKey;
+				return "-D" + Settings.REPORT_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.getReportKey() + 
+				" -D" + Settings.QUERY_SERVICE + "=localhost:" + server.getListeningPort() + ":" + instrumentedProcess.getQueryKey();
 			}
 		}
 		return null;
-	}
-
-	private final class ConflictHandler implements Runnable {
-		private final Conflict conflictItem;
-		public int result = 0;
-		
-		private ConflictHandler(Conflict conflictItem) {
-			this.conflictItem = conflictItem;
-		}
-
-		@Override
-		public void run() {
-			viewer.setExpandedState(conflictItem.process, true);
-			viewer.refresh();
-			result = handleConflict(conflictItem);
-		}
-	}
-
-	class Conflict {
-		public Conflict(InstrumentedProcess process, String type, String threadID, String conflictThreadID,
-				String lock, String[] lockStack, String precedent,
-				String[] precedentStack, String conflict,
-				String[] conflictStack, String conflictPrecedent,
-				String[] conflictPrecedentStack, String message) {
-			this.process = process;
-			this.type = type;
-			this.threadID = threadID;
-			this.conflictThreadID = conflictThreadID;
-			this.lock = lock;
-			this.lockStack = lockStack;
-			this.precedent = precedent;
-			this.precedentStack = precedentStack;
-			this.conflict = conflict;
-			this.conflictStack = conflictStack;
-			this.conflictPrecedent = conflictPrecedent;
-			this.conflictPrecedentStack = conflictPrecedentStack;
-			this.message = message;
-		}
-		InstrumentedProcess process;
-		String type;
-		String threadID;
-		String conflictThreadID; 
-		String lock;
-		String[] lockStack; 
-		String precedent;
-		String[] precedentStack;
-		String conflict;
-		String[] conflictStack;
-		String conflictPrecedent;
-		String[] conflictPrecedentStack;
-		String message;
-		
-		public String toString() {
-			return type + ": '" + lock + "' conflicts with '" + precedent + "' in thread '" + threadID  + "' and '" + conflictThreadID + "'";
-		}
-
-
-		public boolean isError() {
-			return type.equals("ERROR");
-		}
-
-
-		public void remove() {
-			process.conflictList.remove(this);
-		}
 	}
 
 	class ViewContentProvider implements IStructuredContentProvider, 
@@ -634,7 +433,15 @@ public class LauncherView extends ViewPart implements IAgent {
 			}
 	    });
 
-		displayWarning = new Button(conflicts, SWT.CHECK);
+		menuItem = new MenuItem (menu, SWT.PUSH);
+	    menuItem.setText ("Download Global Lock State...");
+	    menuItem.addSelectionListener(new SelectionAdapter() {
+			public void widgetSelected(SelectionEvent e) {
+				downloadGlobalLockState();
+			}
+	    });
+
+	    displayWarning = new Button(conflicts, SWT.CHECK);
 		displayWarning.setText("Display warnings");
 		displayWarning.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
 		displayWarning.setSelection(Boolean.parseBoolean(new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_WARNINGS, Boolean.toString(false))));
@@ -698,6 +505,15 @@ public class LauncherView extends ViewPart implements IAgent {
 			Object obj = it.next();
 			if ((obj instanceof InstrumentedProcess))
 				((InstrumentedProcess) obj).displayStatistics();
+		}
+	}
+	
+	protected void downloadGlobalLockState() {
+		Iterator<?> it = getSelection().iterator();
+		while (it.hasNext()) {
+			Object obj = it.next();
+			if ((obj instanceof InstrumentedProcess))
+				((InstrumentedProcess) obj).downloadGlobalLockState();
 		}
 	}
 
@@ -909,5 +725,21 @@ public class LauncherView extends ViewPart implements IAgent {
 	 */
 	public void setFocus() {
 		viewer.getControl().setFocus();
+	}
+
+	public TreeViewer getViewer() {
+		return viewer;
+	}
+
+	public void setViewer(TreeViewer viewer) {
+		this.viewer = viewer;
+	}
+
+	public boolean shouldDisplayWarning() {
+		return displayWarning.getSelection();
+	}
+
+	public String getDefaultFilters() {
+		return defaultFilters;
 	}
 }

@@ -10,12 +10,6 @@
  *******************************************************************************/
 package com.freescale.deadlockpreventer;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.Writer;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -288,7 +282,7 @@ public class Analyzer {
 					if (precedent.getLock() != lock) {
 						
 						synchronized(globalOrder) {
-							AcquisitionOrder precedentOrder = globalOrder.getFromKey(precedent.lockKey, precedent.getLock());
+							AcquisitionOrder precedentOrder = globalOrder.getFromKey(precedent.getLockKey(), precedent.getLock());
 							if (precedentOrder != null) {
 								LockInfo conflict = precedentOrder.find(info);
 								List<LockInfo> subList = localIndex > 0? localOrder.order.subList(0, localIndex):new ArrayList<LockInfo>();

@@ -18,7 +18,7 @@ import java.util.Map.Entry;
 
 public class LockInfo {
 	private Object lock;
-	Integer lockKey;
+	private Integer lockKey;
 	// This is not normally set, except from statistic gathering
 	String lockID;
 	
@@ -30,6 +30,10 @@ public class LockInfo {
 	
 	public Object getLock() {
 		return lock;
+	}
+	
+	public Integer getLockKey() {
+		return lockKey;
 	}
 	
 	String threadId = null;

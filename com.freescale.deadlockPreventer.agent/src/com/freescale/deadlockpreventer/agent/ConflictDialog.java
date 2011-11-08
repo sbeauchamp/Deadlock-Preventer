@@ -22,8 +22,6 @@ import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
-import com.freescale.deadlockpreventer.agent.LauncherView.Conflict;
-
 public class ConflictDialog extends Dialog {
 	Conflict conflict;
 	
