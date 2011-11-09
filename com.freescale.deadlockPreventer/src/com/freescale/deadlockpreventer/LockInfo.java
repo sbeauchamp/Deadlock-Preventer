@@ -55,7 +55,7 @@ public class LockInfo {
 	}
 	
 	public String toString() {
-		return "LockInfo: " + Util.safeToString(lock);
+		return "LockInfo: " + Util.getUniqueIdentifier(lock);
 	}
 	
 	public LockInfo copy() {

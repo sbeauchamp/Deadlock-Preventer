@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.regex.Pattern;
 
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -26,6 +27,7 @@ import org.eclipse.jface.operation.IRunnableWithProgress;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
+import org.eclipse.ui.IMemento;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.XMLMemento;
 
@@ -124,7 +126,7 @@ public class InstrumentedProcess implements ReportService.IListener, IProcess
 	}
 	
 	protected Conflict[] getDisplayedConflicts() {
-		String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(IAgent.PREF_DISPLAY_FILTERS, launcherView.getDefaultFilters());
+		String filtersString = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(IAgent.PREF_DISPLAY_FILTERS, launcherView.getDefaultFilters());
 		
 		String[] filters = filtersString.split(";");
 		Pattern[] patterns = new Pattern[filters.length];
@@ -180,7 +182,11 @@ public class InstrumentedProcess implements ReportService.IListener, IProcess
 									.createWriteRoot("locks");
 							ITransaction transaction = null;
 							try {
+								
+								IMemento locksRoot = root.createChild("root");
 
+								HashMap<String, QueryService.IBundleInfo> plugins = new HashMap<String, QueryService.IBundleInfo>();
+								
 								transaction = queryService.createTransaction();
 								if (transaction == null)
 									return;
@@ -194,12 +200,20 @@ public class InstrumentedProcess implements ReportService.IListener, IProcess
 									monitor.worked(tmp.length);
 									
 									for (int i = 0; i < tmp.length; i++) {
-										XMLUtil.write(root, tmp[i]);
+										XMLUtil.write(locksRoot, tmp[i]);
+										
+										String[] stackTrace = tmp[i].getStackTrace();
+										if (stackTrace.length > 0) {
+											QueryService.IBundleInfo bundle = transaction.getBundleInfo(tmp[i]);
+											if (!plugins.containsKey(bundle.getName()))
+												plugins.put(bundle.getName(), bundle);
+										}
 									}
 									index += interval;
 									if (monitor.isCanceled())
 										break;
 								}
+								XMLUtil.write(root, plugins.values());
 							} finally {
 								if (transaction != null)
 									transaction.close();

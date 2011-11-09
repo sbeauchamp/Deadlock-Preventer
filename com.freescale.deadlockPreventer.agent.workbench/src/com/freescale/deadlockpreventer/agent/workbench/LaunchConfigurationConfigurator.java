@@ -244,6 +244,8 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			if (additional != null)
 				newAttributes.append(SPACE + additional);
 			
+			newAttributes.append(SPACE + "-D" + Settings.BUNDLE_ADVISOR + "=" + WorkbenchBundleAdvisor.class.getName());
+			
 			if (Platform.inDebugMode())
 				System.out.println("adding new vm args to launch conf: " + newAttributes.toString());
 
@@ -286,7 +288,6 @@ public class LaunchConfigurationConfigurator implements IConfigurator{
 			} catch (CoreException e) {
 				e.printStackTrace();
 			}
-			
 		}
 		
 	}

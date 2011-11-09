@@ -100,7 +100,7 @@ public class LauncherView extends ViewPart implements IAgent {
 
 	
 	public String getPref(String key, String defaultValue) {
-		return new InstanceScope().getNode(Activator.PLUGIN_ID).get(key, defaultValue);
+		return InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(key, defaultValue);
 	}
 
 	public String getViewID() {
@@ -108,7 +108,7 @@ public class LauncherView extends ViewPart implements IAgent {
 	}
 	
 	public void setPref(String key, String value) {
-		new InstanceScope().getNode(Activator.PLUGIN_ID).put(key, value);
+		InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(key, value);
 	}
 	public void output(String string) {
 		if (!outputText.isDisposed())
@@ -218,7 +218,7 @@ public class LauncherView extends ViewPart implements IAgent {
 
 		switch(vmArgAgent) {
 		case VM_ADDITIONAL_ARGUMENTS:
-			String exception = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_EXCEPTION_THROWS, null);
+			String exception = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_EXCEPTION_THROWS, null);
 			if (exception != null)
 				return "-Dcom.freescale.deadlockpreventer.throwingClass=" + exception;
 			return null;
@@ -444,10 +444,10 @@ public class LauncherView extends ViewPart implements IAgent {
 	    displayWarning = new Button(conflicts, SWT.CHECK);
 		displayWarning.setText("Display warnings");
 		displayWarning.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
-		displayWarning.setSelection(Boolean.parseBoolean(new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_WARNINGS, Boolean.toString(false))));
+		displayWarning.setSelection(Boolean.parseBoolean(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_WARNINGS, Boolean.toString(false))));
 		displayWarning.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				new InstanceScope().getNode(Activator.PLUGIN_ID).put(PREF_DISPLAY_WARNINGS, Boolean.toString(displayWarning.getSelection()));
+				InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(PREF_DISPLAY_WARNINGS, Boolean.toString(displayWarning.getSelection()));
 				viewer.refresh();
 			}
 		});
@@ -457,12 +457,12 @@ public class LauncherView extends ViewPart implements IAgent {
 		editFilters.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
 		editFilters.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
+				String filtersString = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
 		        InputDialog dlg = new InputDialog(getSite().getShell(),
 		                "Conflict filters", "Conflicts matching the following list of regular expressions separated by semi-colons (;) will not be displayed:", 
 		                filtersString, new FilterValidator());
 		        if (dlg.open() == Window.OK)
-					new InstanceScope().getNode(Activator.PLUGIN_ID).put(PREF_DISPLAY_FILTERS, dlg.getValue());
+					InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(PREF_DISPLAY_FILTERS, dlg.getValue());
 		        	viewer.refresh();
 		        }
 		});
@@ -545,7 +545,7 @@ public class LauncherView extends ViewPart implements IAgent {
 	private Button printToStdout;
 	
 	private boolean passFilters(Conflict conflictItem) {
-		String filtersString = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
+		String filtersString = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_DISPLAY_FILTERS, defaultFilters);
 		
 		String[] filters = filtersString.split(";");
 		Pattern[] patterns = new Pattern[filters.length];
@@ -569,7 +569,7 @@ public class LauncherView extends ViewPart implements IAgent {
 		if (!passFilters(conflictItem))
 			return IConflictListener.CONTINUE;
 		int flag = 0;
-		if (Boolean.parseBoolean(new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_PRINT_TO_STDOUT, Boolean.toString(false))))
+		if (Boolean.parseBoolean(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_PRINT_TO_STDOUT, Boolean.toString(false))))
 			flag |= IConflictListener.LOG_TO_CONSOLE;
 		if (logAndContinue.getSelection())
 			return flag | IConflictListener.CONTINUE;
@@ -664,12 +664,12 @@ public class LauncherView extends ViewPart implements IAgent {
 		
 	    link.addListener(SWT.Selection, new Listener() {
 	        public void handleEvent(Event event) {
-				String exception = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_EXCEPTION_THROWS, "com.freescale.deadlockpreventer.OrderingException");
+				String exception = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_EXCEPTION_THROWS, "com.freescale.deadlockpreventer.OrderingException");
 		        InputDialog dlg = new InputDialog(getSite().getShell(),
 		                "Exception thrown", "The following exception will be thrown when a conflict is detected:", 
 		                exception, new FilterValidator());
 		        if (dlg.open() == Window.OK)
-		        	new InstanceScope().getNode(Activator.PLUGIN_ID).put(PREF_EXCEPTION_THROWS, dlg.getValue());
+		        	InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(PREF_EXCEPTION_THROWS, dlg.getValue());
 		        	viewer.refresh();
 		        }
 	        }
@@ -684,7 +684,7 @@ public class LauncherView extends ViewPart implements IAgent {
 		terminate.setLayoutData(gridData);
 		terminate.setData(new Integer(3));
 
-		String defaultItem = new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_DEFAULT_HANDLING, Integer.toString(1));
+		String defaultItem = InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_DEFAULT_HANDLING, Integer.toString(1));
 		
 		Integer selectedItem = Integer.parseInt(defaultItem);
 		final Button[] radios = {interactive, logAndContinue, throwsException, terminate};
@@ -695,7 +695,7 @@ public class LauncherView extends ViewPart implements IAgent {
 			radios[i].addSelectionListener(new SelectionAdapter() {
 				public void widgetSelected(SelectionEvent e) {
 					Integer index = (Integer) e.widget.getData();
-					new InstanceScope().getNode(Activator.PLUGIN_ID).put(PREF_DEFAULT_HANDLING, index.toString());
+					InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(PREF_DEFAULT_HANDLING, index.toString());
 					if (e.widget == throwsException) {
 						interactive.setSelection(false);
 						logAndContinue.setSelection(false);
@@ -713,10 +713,10 @@ public class LauncherView extends ViewPart implements IAgent {
 		printToStdout.setLayoutData(new GridData(SWT.LEFT, SWT.CENTER, false, false));
 		printToStdout.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
-				new InstanceScope().getNode(Activator.PLUGIN_ID).put(PREF_PRINT_TO_STDOUT, Boolean.toString(printToStdout.getSelection()));
+				InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).put(PREF_PRINT_TO_STDOUT, Boolean.toString(printToStdout.getSelection()));
 			}
 		});
-		printToStdout.setSelection(Boolean.parseBoolean(new InstanceScope().getNode(Activator.PLUGIN_ID).get(PREF_PRINT_TO_STDOUT, Boolean.toString(false))));
+		printToStdout.setSelection(Boolean.parseBoolean(InstanceScope.INSTANCE.getNode(Activator.PLUGIN_ID).get(PREF_PRINT_TO_STDOUT, Boolean.toString(false))));
 
 	}
 

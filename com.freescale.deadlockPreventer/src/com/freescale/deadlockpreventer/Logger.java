@@ -13,10 +13,13 @@ package com.freescale.deadlockpreventer;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+
+import com.freescale.deadlockpreventer.QueryService.IBundleInfo;
 
 public class Logger {
 
@@ -162,7 +165,7 @@ public class Logger {
 		if (elements != null && elements.length > FIRST_STACK_TRACE_ELEMENT
 				&& precedentElements != null && precedentElements.length > FIRST_STACK_TRACE_ELEMENT) {
 			buffer.append(indent + elements[FIRST_STACK_TRACE_ELEMENT].toString() + "     <--  acquiring: "
-					+ Util.safeToString(lock.getLock()));
+					+ Util.getUniqueIdentifier(lock.getLock()));
 
 			// Find how many elements are common to both stack traces.
 			// If the lock stack trace is:
@@ -194,7 +197,7 @@ public class Logger {
 
 			buffer.append("\n" + indent + precedentElements[FIRST_STACK_TRACE_ELEMENT].toString()
 					+ "     <--  acquiring: "
-					+ Util.safeToString(precedent.getLock()));
+					+ Util.getUniqueIdentifier(precedent.getLock()));
 
 			for (int i = FIRST_STACK_TRACE_ELEMENT + 1; i < precedentElements.length; i++) {
 				buffer.append("\n" + indent + precedentElements[i].toString());
@@ -231,15 +234,15 @@ public class Logger {
 		switch (type) {
 		case Analyzer.TYPE_ERROR:
 			msg = "ERROR: Inconsistent locking order while acquiring lock: "
-					+ Util.safeToString(info.getLock());
+					+ Util.getUniqueIdentifier(info.getLock());
 			break;
 		case Analyzer.TYPE_WARNING:
 			msg = "WARNING: Inconsistent locking order while acquiring lock: "
-					+ Util.safeToString(info.getLock());
+					+ Util.getUniqueIdentifier(info.getLock());
 			break;
 		case Analyzer.TYPE_ERROR_SIGNAL:
 			msg = "ERROR: Inconsistent messaging order while signaling objects: "
-					+ Util.safeToString(info.getLock());
+					+ Util.getUniqueIdentifier(info.getLock());
 			break;
 		}
 
@@ -356,5 +359,14 @@ public class Logger {
 			StackTraceElement[] stackTrace, int startOffset) {
 		for (int i = startOffset; i < stackTrace.length; i++)
 			buffer.append(header + stackTrace[i].toString() + "\n");
+	}
+
+	public static void dumpBundleInfo(IBundleInfo info, PrintWriter writer) {
+		try {
+			writer.write("bundle info: " + info.getName());
+			writeStack(writer, "  ", info.getPackages());
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 }

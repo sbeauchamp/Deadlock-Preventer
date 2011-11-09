@@ -38,7 +38,7 @@ public class StateEditorInput implements IEditorInput {
 	}
 
 	@Override
-	public Object getAdapter(Class adapter) {
+	public Object getAdapter(@SuppressWarnings("rawtypes") Class adapter) {
 		return null;
 	}
 

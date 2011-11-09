@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 
 import com.freescale.deadlockpreventer.NetworkServer.Session;
+import com.freescale.deadlockpreventer.QueryService.IBundleInfo;
 import com.freescale.deadlockpreventer.QueryService.ITransaction;
 import com.freescale.deadlockpreventer.ReportService.IListener;
 
@@ -236,6 +237,16 @@ public class ConsoleNetworkServer {
 		return 0;
 	}
 
+	private static int command_newTransaction(String[] args) {
+		if (!waitForConnection())
+			return 0;
+		if (transaction != null)
+			transaction.close();
+		transaction = queryService.createTransaction();
+		System.out.println("Transaction created: " + transaction.toString());
+		return 0;
+	}
+	
 	private static int command_getDetails(String[] args) {
 		if (!waitForConnection())
 			return 0;
@@ -252,6 +263,26 @@ public class ConsoleNetworkServer {
 		else {
 			PrintWriter writer = new PrintWriter(System.out);
 			Logger.dumpLockInformation(locks, writer);
+			writer.flush();
+		}
+		return 0;
+	}
+
+	private static int command_getBundleInfo(String[] args) {
+		if (!waitForConnection())
+			return 0;
+
+		if (transaction == null)
+			transaction = queryService.createTransaction();
+		int index = Integer.parseInt(args[1]);
+		int end = index + 1;
+		ILock[] locks = transaction.getLocks(index, end);
+		if (locks == null)
+			System.out.println("lock index(" + index + ") not found");
+		else {
+			IBundleInfo info = transaction.getBundleInfo(locks[0]);
+			PrintWriter writer = new PrintWriter(System.out);
+			Logger.dumpBundleInfo(info, writer);
 			writer.flush();
 		}
 		return 0;

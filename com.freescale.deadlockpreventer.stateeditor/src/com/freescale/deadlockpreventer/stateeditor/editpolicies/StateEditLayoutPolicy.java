@@ -9,9 +9,11 @@ import org.eclipse.gef.requests.CreateRequest;
 import com.freescale.deadlockpreventer.stateeditor.commands.AbstractLayoutCommand;
 import com.freescale.deadlockpreventer.stateeditor.commands.ComponentChangeLayoutCommand;
 import com.freescale.deadlockpreventer.stateeditor.commands.LockChangeLayoutCommand;
+import com.freescale.deadlockpreventer.stateeditor.commands.ReferenceLockChangeLayoutCommand;
 import com.freescale.deadlockpreventer.stateeditor.commands.RootChangeLayoutCommand;
 import com.freescale.deadlockpreventer.stateeditor.part.ComponentPart;
 import com.freescale.deadlockpreventer.stateeditor.part.LockPart;
+import com.freescale.deadlockpreventer.stateeditor.part.ReferenceLockPart;
 import com.freescale.deadlockpreventer.stateeditor.part.RootPart;
 
 public class StateEditLayoutPolicy extends XYLayoutEditPolicy {
@@ -24,8 +26,10 @@ public class StateEditLayoutPolicy extends XYLayoutEditPolicy {
 		} else if (child instanceof ComponentPart) {
 			command = new ComponentChangeLayoutCommand();
 		} else if (child instanceof RootPart) {
-		command = new RootChangeLayoutCommand();
-	}
+			command = new RootChangeLayoutCommand();
+		} else if (child instanceof ReferenceLockPart) {
+			command = new ReferenceLockChangeLayoutCommand();
+		}
 		command.setModel(child.getModel());
 		command.setConstraint((Rectangle) constraint);
 		return command;

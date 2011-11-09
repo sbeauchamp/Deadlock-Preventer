@@ -57,13 +57,13 @@ public class NetworkClientListener implements IConflictListener {
 			}
 			this.threadID = threadID;
 			this.conflictThreadID = conflictThreadID;
-			this.lock = Util.safeToString(lock);
+			this.lock = Util.getUniqueIdentifier(lock);
 			this.lockStack = convertToString(lockStack);
-			this.precedent = Util.safeToString(precedent);
+			this.precedent = Util.getUniqueIdentifier(precedent);
 			this.precedentStack = convertToString(precedentStack);
-			this.conflict = Util.safeToString(conflict);
+			this.conflict = Util.getUniqueIdentifier(conflict);
 			this.conflictStack = convertToString(conflictStack);
-			this.conflictPrecedent = Util.safeToString(conflictPrecedent);
+			this.conflictPrecedent = Util.getUniqueIdentifier(conflictPrecedent);
 			this.conflictPrecedentStack = convertToString(conflictPrecedentStack);
 			this.message = message;
 		}

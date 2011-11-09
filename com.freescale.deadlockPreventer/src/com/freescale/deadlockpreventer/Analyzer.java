@@ -133,6 +133,7 @@ public class Analyzer {
 	// last item is the latest acquired
 	static public class AcquisitionOrder {
 		ArrayList<LockInfo> order = new ArrayList<LockInfo>();
+		StackTraceElement[] defaultStackTrace = null;
 
 		public LockInfo find(LockInfo precedent) {
 			for (int i = 0; i  < order.size(); i++) {
@@ -250,7 +251,7 @@ public class Analyzer {
 		try {
 			synchronized(localOrder) {
 				if (trace)
-					System.out.println("enter lock(" + count + "): " + Util.safeToString(lock));
+					System.out.println("enter lock(" + count + "): " + Util.getUniqueIdentifier(lock));
 	
 				Thread currentThread = Thread.currentThread();
 	
@@ -320,6 +321,8 @@ public class Analyzer {
 				// record the precedence
 				synchronized(globalOrder) {
 					AcquisitionOrder order = globalOrder.getOrCreate(lock, AcquisitionOrder.class);
+					if (order.defaultStackTrace == null)
+						order.defaultStackTrace = info.stackTrace;
 					ArrayList<LockInfo> guardList = new ArrayList<LockInfo>();
 					for (int localIndex = 0; localIndex  < localOrder.order.size() - 1; localIndex++) {
 						LockInfo precedent = localOrder.order.get(localIndex);
@@ -397,7 +400,7 @@ public class Analyzer {
 						Boolean value = unkownLocks.get(lock);
 						if (value == null) {
 							unkownLocks.put(lock, true);
-							error("ERROR: leaving unknown lock (" + Util.safeToString(lock) + ")");
+							error("ERROR: leaving unknown lock (" + Util.getUniqueIdentifier(lock) + ")");
 						}
 					}
 				}
@@ -446,7 +449,7 @@ public class Analyzer {
 	private LockInfo leaveLockInThread(AcquisitionOrder localOrder, Object lock, int count) {
 		synchronized(localOrder) {
 			if (trace)
-				System.out.println("leave lock(" + count + "): " + Util.safeToString(lock));
+				System.out.println("leave lock(" + count + "): " + Util.getUniqueIdentifier(lock));
 			for (int i = localOrder.order.size() - 1; i >= 0; i--) {
 				LockInfo info = localOrder.order.get(i);
 				if (info.getLock() == lock) {

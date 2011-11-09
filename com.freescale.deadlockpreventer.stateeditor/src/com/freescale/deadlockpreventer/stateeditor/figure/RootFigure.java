@@ -1,15 +1,12 @@
 package com.freescale.deadlockpreventer.stateeditor.figure;
 
 import org.eclipse.draw2d.ColorConstants;
-import org.eclipse.draw2d.Figure;
-import org.eclipse.draw2d.Label;
 import org.eclipse.draw2d.LineBorder;
 import org.eclipse.draw2d.XYLayout;
 import org.eclipse.draw2d.geometry.Rectangle;
 
-public class RootFigure extends Figure {
+public class RootFigure extends StateAbstractFigure {
 
-	private Label labelName = new Label();
 	XYLayout layout;
 
 	public RootFigure() {
@@ -24,9 +21,5 @@ public class RootFigure extends Figure {
 
 	public void setLayout(Rectangle rect) {
 		setBounds(rect);
-	}
-
-	public void setName(String text) {
-		labelName.setText("Root: " + text);
 	}
 }

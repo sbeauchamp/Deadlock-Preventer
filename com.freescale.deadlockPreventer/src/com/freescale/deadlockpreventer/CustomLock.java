@@ -20,7 +20,7 @@ public class CustomLock {
 	}
 
 	public String toString() {
-		return "(Custom) " + Util.safeToString(lock);
+		return "(Custom) " + Util.getUniqueIdentifier(lock);
 	}
 	
 	static public Object getExternal(Object lock) {

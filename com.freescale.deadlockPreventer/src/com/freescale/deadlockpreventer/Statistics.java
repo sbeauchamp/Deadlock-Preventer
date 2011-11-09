@@ -19,6 +19,7 @@ import java.util.LinkedList;
 import java.util.Map.Entry;
 
 import com.freescale.deadlockpreventer.Analyzer.AcquisitionOrder;
+import com.freescale.deadlockpreventer.QueryService.IBundleInfo;
 
 public class Statistics
 {
@@ -32,11 +33,12 @@ public class Statistics
 					IncompleteLockImpl lock = new IncompleteLockImpl(entry.object, stringTable);
 					lock.order = entry.value;
 					locks.put(lock.getID(), lock);
+					lock.recordStackTrace(entry.value.defaultStackTrace);
 				}
 			}
 			for (ArrayList<ObjectCache.Entry<AcquisitionOrder>> list : Analyzer.instance().globalOrder.cache.values()) {
 				for (ObjectCache.Entry<AcquisitionOrder> entry : list) {
-					String id = Util.safeToString(entry.object);
+					String id = Util.getUniqueIdentifier(entry.object);
 					LockImpl lock = locks.get(id);
 					for (LockInfo info : entry.value.order) {
 						String precedentId = getLockID(info);
@@ -45,7 +47,6 @@ public class Statistics
 							precedent = new LockImpl(info.getLock(), stringTable);
 							locks.put(precedentId, precedent);
 						}
-						precedent.recordStackTrace(info.stackTrace);
 						if (!lock.hasPrecedent(precedentId)) {
 							ContextImpl precedentContext = new ContextImpl(precedent, info, stringTable);
 							lock.addPrecedent(precedentContext);
@@ -69,7 +70,7 @@ public class Statistics
 	
 	private String getLockID(LockInfo info) {
 		if (info.lockID == null)
-			info.lockID = Util.safeToString(info.getLock());
+			info.lockID = Util.getUniqueIdentifier(info.getLock());
 		return info.lockID;
 	}
 
@@ -139,6 +140,12 @@ public class Statistics
 		}
 		return result.toArray(new ILock[0]);
 	}
+	
+	public IBundleInfo unSerializeBundleInfo(LinkedList<String> stack) {
+		String name = stack.removeFirst();
+		BundleInfoImpl info = new BundleInfoImpl(name, stack.toArray(new String[0]));
+		return info;
+	}
 
 	public ILock[] locks() {
 		return locks.values().toArray(new ILock[0]);
@@ -178,6 +185,36 @@ public class Statistics
 		stringTable.serialize(result);
 		return result;
 	}
+
+	public static ArrayList<String> serializeBundleInfo(String name,
+			String[] array) {
+		ArrayList<String> result = new ArrayList<String>();
+		result.add(name);
+		result.addAll(Arrays.asList(array));
+		return result;
+	}
+}
+
+class BundleInfoImpl implements IBundleInfo {
+
+	String name;
+	String[] packages;
+	
+	public BundleInfoImpl(String name, String[] packages) {
+		this.name = name;
+		this.packages = packages;
+	}
+	
+	@Override
+	public String getName() {
+		return name;
+	}
+
+	@Override
+	public String[] getPackages() {
+		return packages;
+	}
+	
 }
 
 class StringTable {
@@ -248,7 +285,7 @@ class LockImpl implements ILock
 	
 	public LockImpl(Object object, StringTable stringTable) {
 		this.st = stringTable;
-		id = st.get(Util.safeToString(object));
+		id = st.get(Util.getUniqueIdentifier(object));
 	}
 
 	public LockImpl(StringTable stringTable) {

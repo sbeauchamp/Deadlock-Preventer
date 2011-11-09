@@ -26,5 +26,5 @@ public interface Settings {
 	public static final String QUERY_SERVICE = "com.freescale.deadlockpreventer.queryService";
 	public static final String REPORT_SERVICE = "com.freescale.deadlockpreventer.reportService";
 	public static final String DUMP_LOCK_INFO = "com.freescale.deadlockpreventer.dumpLocksToFile";
-
+	public static final String BUNDLE_ADVISOR = "com.freescale.deadlockpreventer.bundleAdvisor";
 }

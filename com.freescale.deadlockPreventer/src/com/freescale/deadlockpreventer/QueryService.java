@@ -29,9 +29,20 @@ public class QueryService implements NetworkServer.IService {
 	private static String DUMP_LOCKS = "dump";
 	private static String INIT_TRANSACTION = "init_transaction";
 	private static String GET_LOCK = "get_lock";
+	private static String GET_BUNDLE_INFO = "get_bundle_info";
 	private static String CLOSE_TRANSACTION = "close_transaction";
 	
-	public QueryService() {}
+	private static IBuildInfoAdvisor bundleAdvisor = new IBuildInfoAdvisor() {
+		@Override
+		public String getBundleInfo(ClassLoader classloader, Class cls,
+				ArrayList<String> packages) {
+			return classloader.toString();
+		}
+	};
+	private static boolean bundleAdvisorInitialized = false;
+	
+	public QueryService() {
+	}
 	
 	public static class Client {
 		NetworkServer.Session session;
@@ -114,6 +125,16 @@ public class QueryService implements NetworkServer.IService {
 						return null;
 					return new Message(Statistics.serializeLocks(locks));
 				}
+				if (strs.get(0).equals(GET_BUNDLE_INFO)) {
+					String transactionID = strs.get(1);
+					Transaction transaction = find(transactionID);
+					if (transaction == null)
+						return null;
+					// String lockId = strs.get(2);
+					ArrayList<String> packages = new ArrayList<String>();
+					String name = getBundleInfo(strs.get(3), packages);
+					return new Message(Statistics.serializeBundleInfo(name, packages.toArray(new String[0])));
+				}
 			}
 			return null;
 		}
@@ -171,7 +192,51 @@ public class QueryService implements NetworkServer.IService {
     	}
     }
 
-    public boolean isClosed() {
+    static public String getBundleInfo(String acquisitionRoot, ArrayList<String> packages) {
+		// the acquisition root is a method, format "package.class.method"
+		int index = acquisitionRoot.lastIndexOf(".");
+		if (index != -1)
+			acquisitionRoot = acquisitionRoot.substring(0, index);
+
+		try {
+			Class cls = Class.forName(acquisitionRoot);
+			if (cls != null) {
+				ClassLoader loader = cls.getClassLoader();
+				if (loader != null) {
+					initializeBundleAdvisor();
+					return bundleAdvisor.getBundleInfo(loader, cls, packages);
+				}
+			}
+		} catch (ClassNotFoundException e) {
+		}
+		return "";
+	}
+
+    public static interface IBuildInfoAdvisor {
+    	public String getBundleInfo(ClassLoader classloader, Class cls, ArrayList<String> packages);
+    }
+    
+	private static void initializeBundleAdvisor() {
+		if (!bundleAdvisorInitialized)  {
+			bundleAdvisorInitialized = true;
+			String bundleAdvisorClass = System.getProperty(Settings.BUNDLE_ADVISOR);
+			if (bundleAdvisorClass != null) {
+				try {
+					Class<?> cls = Class.forName(bundleAdvisorClass);
+					if (cls.isInstance(IBuildInfoAdvisor.class))
+						bundleAdvisor = (IBuildInfoAdvisor) cls.newInstance();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				} catch (InstantiationException e) {
+					e.printStackTrace();
+				} catch (IllegalAccessException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+
+	public boolean isClosed() {
     	synchronized(this) {
     		return connection != null && connection.isClosed();
     	}
@@ -197,10 +262,16 @@ public class QueryService implements NetworkServer.IService {
     	return new Transaction(result.getStrings());
     }
 
+    public interface IBundleInfo {
+    	public String getName();
+    	public String[] getPackages();
+    }
+    
     public interface ITransaction {
     	
     	public int getLockCount();
     	public ILock[] getLocks(int start, int end);
+    	public IBundleInfo getBundleInfo(ILock lock);
     	
     	public void close();
     }
@@ -219,6 +290,10 @@ public class QueryService implements NetworkServer.IService {
 		int count;
     	Statistics stats;
 		
+    	public String toString() {
+    		return "Transaction ID:" + transactionID;
+    	}
+    	
 		@Override
 		public int getLockCount() {
 			return count;
@@ -232,6 +307,22 @@ public class QueryService implements NetworkServer.IService {
 	    		return null;
 	    	return stats.unSerializeLocks(new LinkedList<String>(result.getStrings()));
 		}
+
+    	public IBundleInfo getBundleInfo(ILock lock) {
+    		String acquisitionRoot = "";
+    		String[] stackTrace = lock.getStackTrace();
+			if (stackTrace.length > 0) {
+				acquisitionRoot = stackTrace[0];
+				int index = acquisitionRoot.indexOf("(");
+				if (index != -1)
+					acquisitionRoot = acquisitionRoot.substring(0, index);
+			}
+	    	Message msg = new Message(new ArrayList<String>(Arrays.asList(new String[] {GET_BUNDLE_INFO, transactionID, lock.getID(), acquisitionRoot})));
+	    	Message result = connection.request(msg);
+	    	if (result == null)
+	    		return null;
+	    	return stats.unSerializeBundleInfo(new LinkedList<String>(result.getStrings()));
+    	}
 
 		@Override
 		public void close() {
